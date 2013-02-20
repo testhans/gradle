@@ -62,12 +62,7 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
         int numExecutors = Math.min(executorCount, projects.size());
 
         for (int i = 0; i < numExecutors; i++) {
-            TaskExecutorWorker worker = new TaskExecutorWorker(taskExecutionPlan, taskListener);
-
-            for (int j = i; j < projects.size(); j += numExecutors) {
-                worker.addProject(projects.get(j));
-            }
-
+            TaskExecutorWorker worker = new TaskExecutorWorker(taskExecutionPlan, taskListener, projects);
             executorThreads.add(new Thread(worker));
         }
 
@@ -89,20 +84,43 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
         private final TaskExecutionPlan taskExecutionPlan;
         private final TaskExecutionListener taskListener;
 
-        private final List<Project> projects = new ArrayList<Project>();
+        private final List<Project> projects;
 
-        private TaskExecutorWorker(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener) {
+        private TaskExecutorWorker(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener, List<Project> projects) {
             this.taskExecutionPlan = taskExecutionPlan;
             this.taskListener = taskListener;
+            this.projects = projects;
         }
 
         public void run() {
-            TaskInfo taskInfo;
-            while ((taskInfo = taskExecutionPlan.getTaskToExecute(getTaskSpec())) != null) {
-                executeTaskWithCacheLock(taskInfo);
+            Project currentProject = nextProject();
+            while (currentProject != null) {
+                TaskInfo taskInfo;
+                try {
+                    while ((taskInfo = taskExecutionPlan.getTaskToExecuteNoBlock(getTaskSpec(currentProject))) != null) {
+                        executeTaskWithCacheLock(taskInfo);
+                    }
+                } finally {
+                    if (taskExecutionPlan.hasUnfinishedTasks(getTaskSpec(currentProject))) {
+                        synchronized (projects) {
+                            projects.add(currentProject);
+                        }
+                    }
+                    currentProject = nextProject();
+                }
             }
 
             LOGGER.info(Thread.currentThread() + " stopping");
+        }
+
+        private Project nextProject() {
+            Project currentProject = null;
+            synchronized (projects) {
+                if (!projects.isEmpty()) {
+                    currentProject = projects.remove(0);
+                }
+            }
+            return currentProject;
         }
 
         private void executeTaskWithCacheLock(final TaskInfo taskInfo) {
@@ -116,14 +134,12 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
             LOGGER.info(taskPath + " (" + Thread.currentThread() + ") - complete");
         }
 
-        public void addProject(Project project) {
-            projects.add(project);
-        }
-
-        private Spec<TaskInfo> getTaskSpec() {
+        private Spec<TaskInfo> getTaskSpec(final Project currentProject) {
             return new Spec<TaskInfo>() {
                 public boolean isSatisfiedBy(TaskInfo element) {
-                    return projects.contains(element.getTask().getProject());
+                    //check if here
+//                    return projects.contains(element.getTask().getProject());
+                    return currentProject == element.getTask().getProject();
                 }
             };
         }

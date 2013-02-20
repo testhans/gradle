@@ -49,4 +49,8 @@ public interface TaskExecutionPlan {
      * @return The list of all available tasks. This includes tasks that have not yet been executed, as well as tasks that have been processed.
      */
     List<Task> getTasks();
+
+    TaskInfo getTaskToExecuteNoBlock(Spec<TaskInfo> taskSpec);
+
+    boolean hasUnfinishedTasks(Spec<TaskInfo> taskSpec);
 }

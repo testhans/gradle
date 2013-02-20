@@ -148,12 +148,53 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
         } finally {
             lock.unlock();
         }
-
     }
+
+    public TaskInfo getTaskToExecuteNoBlock(Spec<TaskInfo> criteria) {
+        lock.lock();
+        try {
+
+            TaskInfo nextMatching;
+            while ((nextMatching = getNextReadyMatchingAndDepsHappy(criteria)) != null) {
+                if (nextMatching.allDependenciesSuccessful()) {
+                    nextMatching.startExecution();
+                    return nextMatching;
+                } else {
+                    nextMatching.skipExecution();
+                    condition.signalAll();
+                }
+            }
+            return null;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public boolean hasUnfinishedTasks(Spec<TaskInfo> taskSpec) {
+        lock.lock();
+        try {
+            return getNextReadyAndMatching(taskSpec) != null;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    //worker should choose a different project if the current one waits for dependencies to other projects
+    //different task in given project should be chosen if current is waiting for a dependency to other task
+    //at one time, one worker owns one project
 
     private TaskInfo getNextReadyAndMatching(Spec<TaskInfo> criteria) {
         for (TaskInfo taskInfo : executionPlan.values()) {
             if (taskInfo.isReady() && criteria.isSatisfiedBy(taskInfo)) {
+                return taskInfo;
+            }
+        }
+        return null;
+    }
+
+    private TaskInfo getNextReadyMatchingAndDepsHappy(Spec<TaskInfo> criteria) {
+        for (TaskInfo taskInfo : executionPlan.values()) {
+            if (taskInfo.isReady() && criteria.isSatisfiedBy(taskInfo) && taskInfo.allDependenciesComplete()) {
                 return taskInfo;
             }
         }
