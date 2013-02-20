@@ -46,4 +46,29 @@ public class ParallelProjectExecutionIntegrationTest extends AbstractIntegration
         expect:
         run 'build', '--parallel-threads', '2'
     }
+
+    //sanity test
+    def "java compilation"() {
+        settingsFile << "include 'a', 'b', 'c', 'd'"
+
+        file("a/src/main/java/A.java") << "public class A { static B b = new B(); }"
+        file("c/src/main/java/C.java") << "public class C { static B b = new B(); }"
+        file("b/src/main/java/B.java") << "public class B {}"
+        file("d/src/main/java/D.java") << "public class D {}"
+
+        buildFile << """
+            subprojects {
+                apply plugin: 'java'
+            }
+            project(":a") {
+                dependencies { compile project(":b") }
+            }
+            project(":c") {
+                dependencies { compile project(":b") }
+            }
+        """
+
+        expect:
+        run 'build', '--parallel-threads', '2', '-i'
+    }
 }
