@@ -15,14 +15,14 @@
  */
 package org.gradle.api.internal.changedetection;
 
-import org.gradle.internal.Factory;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.cache.CacheRepository;
 import org.gradle.cache.PersistentCache;
 import org.gradle.cache.PersistentIndexedCache;
-import org.gradle.messaging.serialize.Serializer;
 import org.gradle.cache.internal.FileLockManager;
+import org.gradle.internal.Factory;
 import org.gradle.listener.LazyCreationProxy;
+import org.gradle.messaging.serialize.Serializer;
 
 import java.io.File;
 
@@ -72,14 +72,17 @@ public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCac
     }
 
     public <T> T useCache(String operationDisplayName, Factory<? extends T> action) {
-        return getCache().useCache(operationDisplayName, action);
+        return action.create();
+//        return getCache().useCache(operationDisplayName, action);
     }
 
     public void useCache(String operationDisplayName, Runnable action) {
-        getCache().useCache(operationDisplayName, action);
+        action.run();
+//        getCache().useCache(operationDisplayName, action);
     }
 
     public void longRunningOperation(String operationDisplayName, Runnable action) {
-        getCache().longRunningOperation(operationDisplayName, action);
+        action.run();
+//        getCache().longRunningOperation(operationDisplayName, action);
     }
 }
