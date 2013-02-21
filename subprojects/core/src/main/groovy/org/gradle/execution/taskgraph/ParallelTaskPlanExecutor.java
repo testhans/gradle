@@ -20,9 +20,9 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.internal.changedetection.TaskArtifactStateCacheAccess;
-import org.gradle.api.specs.Spec;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+import org.gradle.util.Clock;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 
 class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ParallelTaskPlanExecutor.class);
+    private static final Logger LOGGER = Logging.getLogger(ParallelTaskPlanExecutor.class);
 
     private final List<Thread> executorThreads = new ArrayList<Thread>();
     private final TaskArtifactStateCacheAccess stateCacheAccess;
@@ -62,7 +62,7 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
         int numExecutors = Math.min(executorCount, projects.size());
 
         for (int i = 0; i < numExecutors; i++) {
-            TaskExecutorWorker worker = new TaskExecutorWorker(taskExecutionPlan, taskListener, projects);
+            TaskExecutorWorker worker = new TaskExecutorWorker(taskExecutionPlan, taskListener);
             executorThreads.add(new Thread(worker));
         }
 
@@ -83,65 +83,36 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
     private class TaskExecutorWorker implements Runnable {
         private final TaskExecutionPlan taskExecutionPlan;
         private final TaskExecutionListener taskListener;
+        private long busyMillis;
 
-        private final List<Project> projects;
-
-        private TaskExecutorWorker(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener, List<Project> projects) {
+        private TaskExecutorWorker(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener) {
             this.taskExecutionPlan = taskExecutionPlan;
             this.taskListener = taskListener;
-            this.projects = projects;
         }
 
         public void run() {
-            Project currentProject = nextProject();
-            while (currentProject != null) {
-                TaskInfo taskInfo;
-                try {
-                    while ((taskInfo = taskExecutionPlan.getTaskToExecuteNoBlock(getTaskSpec(currentProject))) != null) {
-                        executeTaskWithCacheLock(taskInfo);
-                    }
-                } finally {
-                    if (taskExecutionPlan.hasUnfinishedTasks(getTaskSpec(currentProject))) {
-                        synchronized (projects) {
-                            projects.add(currentProject);
-                        }
-                    }
-                    currentProject = nextProject();
+            while(true) {
+                TaskInfo task = taskExecutionPlan.getTaskToExecute();
+                if (task == null) {
+                    break;
                 }
+                executeTaskWithCacheLock(task);
             }
-
-            LOGGER.info(Thread.currentThread() + " stopping");
-        }
-
-        private Project nextProject() {
-            Project currentProject = null;
-            synchronized (projects) {
-                if (!projects.isEmpty()) {
-                    currentProject = projects.remove(0);
-                }
-            }
-            return currentProject;
+            LOGGER.lifecycle("Parallel worker thread [{}] stopped. Was busy for {}", Thread.currentThread(), Clock.prettyTime(busyMillis));
         }
 
         private void executeTaskWithCacheLock(final TaskInfo taskInfo) {
             final String taskPath = taskInfo.getTask().getPath();
             LOGGER.info(taskPath + " (" + Thread.currentThread() + " - start");
+            long start = System.currentTimeMillis();
             stateCacheAccess.useCache("Executing " + taskPath, new Runnable() {
                 public void run() {
                     processTask(taskInfo, taskExecutionPlan, taskListener);
                 }
             });
-            LOGGER.info(taskPath + " (" + Thread.currentThread() + ") - complete");
-        }
+            busyMillis += System.currentTimeMillis() - start;
 
-        private Spec<TaskInfo> getTaskSpec(final Project currentProject) {
-            return new Spec<TaskInfo>() {
-                public boolean isSatisfiedBy(TaskInfo element) {
-                    //check if here
-//                    return projects.contains(element.getTask().getProject());
-                    return currentProject == element.getTask().getProject();
-                }
-            };
+            LOGGER.info(taskPath + " (" + Thread.currentThread() + ") - complete");
         }
     }
 }

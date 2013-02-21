@@ -50,7 +50,5 @@ public interface TaskExecutionPlan {
      */
     List<Task> getTasks();
 
-    TaskInfo getTaskToExecuteNoBlock(Spec<TaskInfo> taskSpec);
-
-    boolean hasUnfinishedTasks(Spec<TaskInfo> taskSpec);
+    TaskInfo getTaskToExecute();
 }

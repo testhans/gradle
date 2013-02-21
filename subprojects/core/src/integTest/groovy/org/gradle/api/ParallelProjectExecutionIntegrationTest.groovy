@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+
+
 package org.gradle.api;
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
@@ -44,7 +46,7 @@ public class ParallelProjectExecutionIntegrationTest extends AbstractIntegration
         """
 
         expect:
-        run 'build', '--parallel-threads', '2'
+        run 'build', '--parallel-threads', '2', '-i'
     }
 
     //sanity test

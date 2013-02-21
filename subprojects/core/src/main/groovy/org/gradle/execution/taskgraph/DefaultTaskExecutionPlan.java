@@ -43,6 +43,7 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
     private Spec<? super Task> filter = Specs.satisfyAll();
 
     private TaskFailureHandler failureHandler = new RethrowingFailureHandler();
+    private final List<String> runningProjects = new ArrayList<String>();
 
     public void addToTaskGraph(Collection<? extends Task> tasks) {
         List<Task> queue = new ArrayList<Task>(tasks);
@@ -98,6 +99,7 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
         try {
             executionPlan.clear();
             failures.clear();
+            runningProjects.clear();
         } finally {
             lock.unlock();
         }
@@ -150,51 +152,47 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
         }
     }
 
-    public TaskInfo getTaskToExecuteNoBlock(Spec<TaskInfo> criteria) {
+    public TaskInfo getTaskToExecute() {
         lock.lock();
         try {
-
-            TaskInfo nextMatching;
-            while ((nextMatching = getNextReadyMatchingAndDepsHappy(criteria)) != null) {
-                if (nextMatching.allDependenciesSuccessful()) {
-                    nextMatching.startExecution();
-                    return nextMatching;
+            while(true) {
+                TaskInfo nextMatching = null;
+                boolean allTasksComplete = true;
+                for (TaskInfo taskInfo : executionPlan.values()) {
+                    allTasksComplete = allTasksComplete && taskInfo.isComplete();
+                    if (taskInfo.isReady() && taskInfo.allDependenciesComplete() && !runningProjects.contains(taskInfo.getTask().getProject().getPath())) {
+                        nextMatching = taskInfo;
+                        runningProjects.add(taskInfo.getTask().getProject().getPath());
+                        break;
+                    }
+                }
+                if (allTasksComplete) {
+                    return null;
+                }
+                if (nextMatching == null) {
+                    try {
+                        condition.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 } else {
-                    nextMatching.skipExecution();
-                    condition.signalAll();
+                    if (nextMatching.allDependenciesSuccessful()) {
+                        nextMatching.startExecution();
+                        return nextMatching;
+                    } else {
+                        nextMatching.skipExecution();
+                        condition.signalAll();
+                    }
                 }
             }
-            return null;
         } finally {
             lock.unlock();
         }
     }
-
-    public boolean hasUnfinishedTasks(Spec<TaskInfo> taskSpec) {
-        lock.lock();
-        try {
-            return getNextReadyAndMatching(taskSpec) != null;
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    //worker should choose a different project if the current one waits for dependencies to other projects
-    //different task in given project should be chosen if current is waiting for a dependency to other task
-    //at one time, one worker owns one project
 
     private TaskInfo getNextReadyAndMatching(Spec<TaskInfo> criteria) {
         for (TaskInfo taskInfo : executionPlan.values()) {
             if (taskInfo.isReady() && criteria.isSatisfiedBy(taskInfo)) {
-                return taskInfo;
-            }
-        }
-        return null;
-    }
-
-    private TaskInfo getNextReadyMatchingAndDepsHappy(Spec<TaskInfo> criteria) {
-        for (TaskInfo taskInfo : executionPlan.values()) {
-            if (taskInfo.isReady() && criteria.isSatisfiedBy(taskInfo) && taskInfo.allDependenciesComplete()) {
                 return taskInfo;
             }
         }
@@ -209,6 +207,7 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
             }
 
             taskInfo.finishExecution();
+            runningProjects.remove(taskInfo.getTask().getProject().getPath());
             condition.signalAll();
         } finally {
             lock.unlock();
