@@ -19,6 +19,7 @@ package org.gradle.execution.taskgraph;
 import org.gradle.api.Task;
 import org.gradle.api.specs.Spec;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -51,4 +52,6 @@ public interface TaskExecutionPlan {
     List<Task> getTasks();
 
     TaskInfo getTaskToExecute();
+
+    Collection<TaskInfo> allTasks();
 }

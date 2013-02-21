@@ -190,6 +190,10 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
         }
     }
 
+    public Collection<TaskInfo> allTasks() {
+        return executionPlan.values();
+    }
+
     private TaskInfo getNextReadyAndMatching(Spec<TaskInfo> criteria) {
         for (TaskInfo taskInfo : executionPlan.values()) {
             if (taskInfo.isReady() && criteria.isSatisfiedBy(taskInfo)) {

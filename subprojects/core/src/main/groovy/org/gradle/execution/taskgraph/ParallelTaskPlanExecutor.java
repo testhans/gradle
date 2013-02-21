@@ -48,6 +48,7 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
     }
 
     public void process(final TaskExecutionPlan taskExecutionPlan, final TaskExecutionListener taskListener) {
+        spitGraph(taskExecutionPlan);
         stateCacheAccess.longRunningOperation("Executing all tasks", new Runnable() {
             public void run() {
                 doProcess(taskExecutionPlan, taskListener);
@@ -55,6 +56,22 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
                 taskExecutionPlan.awaitCompletion();
             }
         });
+    }
+
+    private void spitGraph(TaskExecutionPlan taskExecutionPlan) {
+        StringBuilder sb = new StringBuilder("******\ngraph tasks {\n");
+        for (TaskInfo taskInfo : taskExecutionPlan.allTasks()) {
+            sb.append(taskInfo.getTask().getPath());
+            if (!taskInfo.getDependencies().isEmpty()) {
+                sb.append(" -> ");
+                for (TaskInfo d : taskInfo.getDependencies()) {
+                    sb.append(d.getTask().getPath());
+                }
+            }
+            sb.append("\n");
+        }
+        sb.append("}\n************\n");
+        LOGGER.lifecycle(sb.toString());
     }
 
     private void doProcess(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener) {
