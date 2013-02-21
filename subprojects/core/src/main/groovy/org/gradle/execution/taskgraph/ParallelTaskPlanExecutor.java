@@ -84,7 +84,6 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
         private final TaskExecutionPlan taskExecutionPlan;
         private final TaskExecutionListener taskListener;
         private long busyMillis;
-        private long busyWithCache;
 
         private TaskExecutorWorker(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener) {
             this.taskExecutionPlan = taskExecutionPlan;
@@ -101,21 +100,15 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
                 executeTaskWithCacheLock(task);
             }
             long total = System.currentTimeMillis() - start;
-            LOGGER.lifecycle("Parallel worker thread [{}] stopped. Was busy for {}, idle for {}, busy with cache: {}", Thread.currentThread(), Clock.prettyTime(busyMillis), Clock.prettyTime(total - busyMillis), Clock.prettyTime(busyWithCache));
+            LOGGER.lifecycle("Parallel worker thread [{}] stopped. Was busy for {}, idle for {}", Thread.currentThread(), Clock.prettyTime(busyMillis), Clock.prettyTime(total - busyMillis));
         }
 
         private void executeTaskWithCacheLock(final TaskInfo taskInfo) {
             final String taskPath = taskInfo.getTask().getPath();
             LOGGER.info(taskPath + " (" + Thread.currentThread() + " - start");
-            long startBeforeCache = System.currentTimeMillis();
-            stateCacheAccess.useCache("Executing " + taskPath, new Runnable() {
-                public void run() {
-                    long start = System.currentTimeMillis();
-                    processTask(taskInfo, taskExecutionPlan, taskListener);
-                    busyMillis += System.currentTimeMillis() - start;
-                }
-            });
-            busyWithCache += System.currentTimeMillis() - startBeforeCache;
+            long start = System.currentTimeMillis();
+            processTask(taskInfo, taskExecutionPlan, taskListener);
+            busyMillis += System.currentTimeMillis() - start;
 
             LOGGER.info(taskPath + " (" + Thread.currentThread() + ") - complete");
         }

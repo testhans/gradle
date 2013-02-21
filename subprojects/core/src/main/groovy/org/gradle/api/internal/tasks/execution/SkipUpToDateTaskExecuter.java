@@ -18,26 +18,45 @@ package org.gradle.api.internal.tasks.execution;
 
 import org.gradle.api.internal.TaskInternal;
 import org.gradle.api.internal.changedetection.TaskArtifactState;
+import org.gradle.api.internal.changedetection.TaskArtifactStateCacheAccess;
 import org.gradle.api.internal.changedetection.TaskArtifactStateRepository;
 import org.gradle.api.internal.tasks.TaskExecuter;
 import org.gradle.api.internal.tasks.TaskStateInternal;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+import org.gradle.util.Clock;
 
 /**
  * A {@link TaskExecuter} which skips tasks whose outputs are up-to-date.
  */
 public class SkipUpToDateTaskExecuter implements TaskExecuter {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SkipUpToDateTaskExecuter.class);
+    private static final Logger LOGGER = Logging.getLogger(SkipUpToDateTaskExecuter.class);
     private final TaskExecuter executer;
     private final TaskArtifactStateRepository repository;
+    private final TaskArtifactStateCacheAccess taskArtifactStateCacheAccess;
 
-    public SkipUpToDateTaskExecuter(TaskExecuter executer, TaskArtifactStateRepository repository) {
+    public SkipUpToDateTaskExecuter(TaskExecuter executer, TaskArtifactStateRepository repository, TaskArtifactStateCacheAccess taskArtifactStateCacheAccess) {
         this.executer = executer;
         this.repository = repository;
+        this.taskArtifactStateCacheAccess = taskArtifactStateCacheAccess;
+
     }
 
-    public void execute(TaskInternal task, TaskStateInternal state) {
+    private long totalWait = 0;
+    private long startCache = 0;
+
+    public void execute(final TaskInternal task, final TaskStateInternal state) {
+        startCache = System.currentTimeMillis();
+        taskArtifactStateCacheAccess.useCache("Up-to-date calculation", new Runnable() {
+            public void run() {
+                totalWait += System.currentTimeMillis() - startCache;
+                LOGGER.lifecycle("Total wait so far: " + Clock.prettyTime(totalWait));
+                executeNow(task, state);
+            }
+        });
+    }
+
+    public void executeNow(TaskInternal task, TaskStateInternal state) {
         LOGGER.debug("Determining if {} is up-to-date", task);
         TaskArtifactState taskArtifactState = repository.getStateFor(task);
         try {

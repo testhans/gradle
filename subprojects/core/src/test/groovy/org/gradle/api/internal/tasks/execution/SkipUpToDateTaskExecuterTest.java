@@ -42,7 +42,7 @@ public class SkipUpToDateTaskExecuterTest {
     private final TaskArtifactStateRepository repository = context.mock(TaskArtifactStateRepository.class);
     private final TaskArtifactState taskArtifactState = context.mock(TaskArtifactState.class);
     private final TaskExecutionHistory executionHistory = context.mock(TaskExecutionHistory.class);
-    private final SkipUpToDateTaskExecuter executer = new SkipUpToDateTaskExecuter(delegate, repository);
+    private final SkipUpToDateTaskExecuter executer = new SkipUpToDateTaskExecuter(delegate, repository, null);
 
     @Before
     public void setup() {
