@@ -91,6 +91,7 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
         }
 
         public void run() {
+            long start = System.currentTimeMillis();
             while(true) {
                 TaskInfo task = taskExecutionPlan.getTaskToExecute();
                 if (task == null) {
@@ -98,7 +99,8 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
                 }
                 executeTaskWithCacheLock(task);
             }
-            LOGGER.lifecycle("Parallel worker thread [{}] stopped. Was busy for {}", Thread.currentThread(), Clock.prettyTime(busyMillis));
+            long total = System.currentTimeMillis() - start;
+            LOGGER.lifecycle("Parallel worker thread [{}] stopped. Was busy for {}, idle for {}", Thread.currentThread(), Clock.prettyTime(busyMillis), Clock.prettyTime(total - busyMillis));
         }
 
         private void executeTaskWithCacheLock(final TaskInfo taskInfo) {
