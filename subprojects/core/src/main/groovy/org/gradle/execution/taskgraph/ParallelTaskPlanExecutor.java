@@ -61,12 +61,13 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
     private void spitGraph(TaskExecutionPlan taskExecutionPlan) {
         StringBuilder sb = new StringBuilder("******\ngraph tasks {\n");
         for (TaskInfo taskInfo : taskExecutionPlan.allTasks()) {
-            sb.append(taskInfo.getTask().getPath());
             if (!taskInfo.getDependencies().isEmpty()) {
-                sb.append(" -> ");
+                sb.append(taskInfo.getTask().getPath()).append(" -> ");
                 for (TaskInfo d : taskInfo.getDependencies()) {
                     sb.append(d.getTask().getPath());
                 }
+            } else {
+                sb.append(taskInfo.getTask().getPath());
             }
             sb.append("\n");
         }
