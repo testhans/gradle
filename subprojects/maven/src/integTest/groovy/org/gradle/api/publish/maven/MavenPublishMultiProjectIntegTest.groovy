@@ -15,10 +15,10 @@
  */
 
 package org.gradle.api.publish.maven
-import org.gradle.integtests.fixtures.AbstractIntegrationSpec
+
 import spock.lang.Ignore
 
-class MavenPublishMultiProjectIntegTest extends AbstractIntegrationSpec {
+class MavenPublishMultiProjectIntegTest extends AbstractMavenPublishIntegTest {
     def project1 = mavenRepo.module("org.gradle.test", "project1", "1.9")
     def project2 = mavenRepo.module("org.gradle.test", "project2", "1.9")
     def project3 = mavenRepo.module("org.gradle.test", "project3", "1.9")
@@ -112,6 +112,8 @@ project(":project2") {
         project3.assertPublishedAsJavaModule()
         project3.parsedPom.scopes == null
 
+        resolveArtifacts(project1) == ["project1-1.9.jar", "project2-1.9.jar", "project3-1.9.jar"]
+
         return true
     }
 
@@ -161,7 +163,7 @@ project(":project2") {
         project1.parsedPom.scopes.runtime.assertDependsOn("org.gradle.test", "project2", "1.9")
     }
 
-    @Ignore("This does not work: fix this as part of making the project coordinates customisable via DSL") // TODO:DAZ Fix this
+    @Ignore("This does not work: fix this as part of making the project coordinates customisable via DSL (using new mechanism to set artifactId")
     def "project dependency correctly reflected in POM if dependency publication pom is changed"() {
         createBuildScripts("""
 project(":project1") {

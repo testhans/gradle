@@ -15,14 +15,13 @@
  */
 
 package org.gradle.api.publish.ivy
-import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 
-class IvyPublishMultiProjectIntegTest extends AbstractIntegrationSpec {
+class IvyPublishMultiProjectIntegTest extends AbstractIvyPublishIntegTest {
     def project1 = ivyRepo.module("org.gradle.test", "project1", "1.9")
     def project2 = ivyRepo.module("org.gradle.test", "project2", "1.9")
     def project3 = ivyRepo.module("org.gradle.test", "project3", "1.9")
 
-    def "project dependencies correctly reflected in descriptor"() {
+    def "project dependencies are correctly bound to published project"() {
         createBuildScripts("")
 
         when:
@@ -37,41 +36,12 @@ class IvyPublishMultiProjectIntegTest extends AbstractIntegrationSpec {
 
         project3.assertPublishedAsJavaModule()
         project3.ivy.dependencies.runtime == null
-    }
-
-    def "can resolve published project"() {
-        when:
-        createBuildScripts("")
-        succeeds "publish"
-
-        then:
-        project1.assertPublishedAsJavaModule()
-
-        when:
-        settingsFile << ""
-        buildFile << """
-apply plugin: 'java'
-
-repositories {
-    ivy { url "${ivyRepo.uri}" }
-}
-dependencies {
-    compile "org.gradle.test:project1:1.9"
-}
-task retrieve(type: Sync) {
-    from configurations.compile
-    into 'libs'
-}
-"""
-
-        then:
-        succeeds "retrieve"
 
         and:
-        file('libs').assertHasDescendants('project1-1.9.jar', 'project2-1.9.jar', 'project3-1.9.jar')
+        resolveArtifacts(project1) == ['project1-1.9.jar', 'project2-1.9.jar', 'project3-1.9.jar']
     }
 
-    def "ivy-publish plugin does not take archivesBaseName into account for publication name"() {
+    def "ivy-publish plugin does not take archivesBaseName into account"() {
         createBuildScripts("""
 project(":project2") {
     archivesBaseName = "changed"
@@ -86,8 +56,7 @@ project(":project2") {
         project1.ivy.dependencies.runtime.assertDependsOnModules("project2", "project3")
 
         // published with the correct coordinates, even though artifact has different name
-        project2.assertPublished()
-        project2.assertArtifactsPublished("changed-${project2.revision}.jar", "ivy-${project2.revision}.xml")
+        project2.assertPublishedAsJavaModule()
         project2.ivy.dependencies.runtime.assertDependsOnModules("project3")
 
         project3.assertPublishedAsJavaModule()

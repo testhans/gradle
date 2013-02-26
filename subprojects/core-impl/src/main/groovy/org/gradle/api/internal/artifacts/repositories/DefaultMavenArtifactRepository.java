@@ -17,7 +17,6 @@ package org.gradle.api.internal.artifacts.repositories;
 
 import com.google.common.collect.Lists;
 import org.apache.ivy.core.module.id.ArtifactRevisionId;
-import org.apache.ivy.plugins.resolver.DependencyResolver;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.artifacts.repositories.PasswordCredentials;
@@ -33,7 +32,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public class DefaultMavenArtifactRepository extends AbstractAuthenticationSupportedRepository implements MavenArtifactRepository, ArtifactRepositoryInternal {
+public class DefaultMavenArtifactRepository extends AbstractAuthenticationSupportedRepository implements MavenArtifactRepository {
     private final FileResolver fileResolver;
     private final RepositoryTransportFactory transportFactory;
     private Object url;
@@ -72,7 +71,7 @@ public class DefaultMavenArtifactRepository extends AbstractAuthenticationSuppor
         additionalUrls = Lists.newArrayList(urls);
     }
 
-    public DependencyResolver createResolver() {
+    public MavenResolver createResolver() {
         URI rootUri = getUrl();
         if (rootUri == null) {
             throw new InvalidUserDataException("You must specify a URL for a Maven repository.");

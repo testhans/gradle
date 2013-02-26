@@ -18,9 +18,11 @@ import org.gradle.api.Action
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Task
 import org.gradle.api.artifacts.DependencySet
+import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.PublishArtifact
 import org.gradle.api.artifacts.PublishArtifactSet
 import org.gradle.api.internal.component.SoftwareComponentInternal
+import org.gradle.api.internal.component.Usage
 import org.gradle.api.internal.file.collections.SimpleFileCollection
 import org.gradle.api.internal.notations.api.NotationParser
 import org.gradle.api.publish.maven.MavenArtifact
@@ -37,7 +39,7 @@ import spock.lang.Specification
 public class DefaultMavenPublicationTest extends Specification {
     @Shared TestDirectoryProvider testDirectoryProvider = new TestNameTestDirectoryProvider()
     def module = Mock(MavenProjectIdentity)
-    NotationParser<MavenArtifact> notationParser = Mock()
+    NotationParser<MavenArtifact> notationParser = Mock(NotationParser)
     TestFile pomDir
     TestFile pomFile
     File artifactFile
@@ -65,7 +67,7 @@ public class DefaultMavenPublicationTest extends Specification {
 
     def "packaging is taken from first added artifact without extension"() {
         when:
-        MavenArtifact mavenArtifact = Mock()
+        def mavenArtifact = Mock(MavenArtifact)
         notationParser.parseNotation("artifact") >> mavenArtifact
         mavenArtifact.extension >> "ext"
 
@@ -87,22 +89,21 @@ public class DefaultMavenPublicationTest extends Specification {
         publication.runtimeDependencies.empty
     }
 
-    def "publishableFiles and artifacts when taken from added component"() {
+    def "artifacts and dependencies are taken from added component"() {
         given:
         def publication = createPublication()
-        SoftwareComponentInternal component = Mock()
-        PublishArtifactSet publishArtifactSet = Mock()
-        PublishArtifact artifact = Mock()
-        TaskDependency publishArtifactDependencies = Mock()
-        DependencySet dependencySet = Mock()
+        def component = Mock(SoftwareComponentInternal)
+        def usage = Mock(Usage)
+        def artifact = Mock(PublishArtifact)
+        def dependency = Mock(ModuleDependency)
+        def publishArtifactDependencies = Mock(TaskDependency)
 
-        MavenArtifact mavenArtifact = Mock()
+        def mavenArtifact = Mock(MavenArtifact)
 
         when:
-        component.artifacts >> publishArtifactSet
-        publishArtifactSet.iterator() >> [artifact].iterator()
-        component.runtimeDependencies >> dependencySet
-        dependencySet.iterator() >> [].iterator()
+        component.usages >> [usage]
+        usage.artifacts >> [artifact]
+        usage.dependencies >> [dependency]
 
         notationParser.parseNotation(artifact) >> mavenArtifact
         mavenArtifact.file >> artifactFile
@@ -113,10 +114,10 @@ public class DefaultMavenPublicationTest extends Specification {
         then:
         publication.publishableFiles.files == [pomFile, artifactFile] as Set
         publication.artifacts == [mavenArtifact] as Set
-        publication.runtimeDependencies == dependencySet
+        publication.runtimeDependencies == [dependency] as Set
 
         when:
-        Task task = Mock()
+        def task = Mock(Task)
         mavenArtifact.buildDependencies >> publishArtifactDependencies
         publishArtifactDependencies.getDependencies(task) >> [task]
 
@@ -127,17 +128,19 @@ public class DefaultMavenPublicationTest extends Specification {
     def "cannot add multiple components"() {
         given:
         def publication = createPublication()
-        SoftwareComponentInternal component = Mock()
-        PublishArtifactSet publishArtifactSet = Mock()
-        DependencySet dependencySet = Mock()
+        def component = Mock(SoftwareComponentInternal)
+        def usage = Mock(Usage)
+        def publishArtifactSet = Mock(PublishArtifactSet)
+        def dependencySet = Mock(DependencySet)
 
         when:
         publication.from(component)
 
         then:
-        component.artifacts >> publishArtifactSet
+        component.usages >> [usage]
+        usage.artifacts >> publishArtifactSet
         publishArtifactSet.iterator() >> [].iterator()
-        component.runtimeDependencies >> dependencySet
+        usage.dependencies >> dependencySet
         dependencySet.iterator() >> [].iterator()
 
         when:
@@ -152,7 +155,7 @@ public class DefaultMavenPublicationTest extends Specification {
         given:
         def publication = createPublication()
         Object notation = new Object();
-        MavenArtifact mavenArtifact = Mock()
+        def mavenArtifact = Mock(MavenArtifact)
 
         when:
         notationParser.parseNotation(notation) >> mavenArtifact
@@ -170,7 +173,7 @@ public class DefaultMavenPublicationTest extends Specification {
         given:
         def publication = createPublication()
         Object notation = new Object();
-        MavenArtifact mavenArtifact = Mock()
+        def mavenArtifact = Mock(MavenArtifact)
 
         when:
         notationParser.parseNotation(notation) >> mavenArtifact
@@ -223,7 +226,7 @@ public class DefaultMavenPublicationTest extends Specification {
     }
 
     def createArtifact() {
-        MavenArtifact artifact = Mock() {
+        def artifact = Mock(MavenArtifact) {
             getFile() >> artifactFile
         }
         return artifact
