@@ -19,12 +19,14 @@ import org.gradle.api.invocation.Gradle;
 import org.gradle.cache.CacheRepository;
 import org.gradle.cache.PersistentCache;
 import org.gradle.cache.PersistentIndexedCache;
-import org.gradle.cache.internal.FileLockManager;
+import org.gradle.cache.internal.btree.BTreePersistentIndexedCache;
 import org.gradle.internal.Factory;
-import org.gradle.listener.LazyCreationProxy;
+import org.gradle.messaging.serialize.DefaultSerializer;
 import org.gradle.messaging.serialize.Serializer;
 
 import java.io.File;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCacheAccess {
     private final Gradle gradle;
@@ -36,50 +38,67 @@ public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCac
         this.cacheRepository = cacheRepository;
     }
 
-    private PersistentCache getCache() {
-        if (cache == null) {
-            cache = cacheRepository
-                    .cache("taskArtifacts")
-                    .forObject(gradle)
-                    .withDisplayName("task artifact state cache")
-                    .withLockMode(FileLockManager.LockMode.Exclusive)
-                    .open();
-        }
-        return cache;
-    }
-
     public <K, V> PersistentIndexedCache<K, V> createCache(final String cacheName, final Class<K> keyType, final Class<V> valueType) {
-        Factory<PersistentIndexedCache> factory = new Factory<PersistentIndexedCache>() {
-            public PersistentIndexedCache create() {
-                return getCache().createCache(cacheFile(cacheName), keyType, valueType);
-            }
-        };
-        return new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
+        BTreePersistentIndexedCache btree = new BTreePersistentIndexedCache(new File(cacheName), new DefaultSerializer<K>(keyType.getClassLoader()), new DefaultSerializer<V>(valueType.getClassLoader()));
+        return new ThreadSafeCache(btree);
+//        Factory<PersistentIndexedCache> factory = new Factory<PersistentIndexedCache>() {
+//            public PersistentIndexedCache create() {
+//                return getCache().createCache(cacheFile(cacheName), keyType, valueType);
+//            }
+//        };
+//        return new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
     }
 
     public <K, V> PersistentIndexedCache<K, V> createCache(final String cacheName, final Class<K> keyType, final Class<V> valueType, final Serializer<V> valueSerializer) {
-        Factory<PersistentIndexedCache> factory = new Factory<PersistentIndexedCache>() {
-            public PersistentIndexedCache create() {
-                return getCache().createCache(cacheFile(cacheName), keyType, valueSerializer);
-            }
-        };
-        return new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
-
-    }
-
-    private File cacheFile(String cacheName) {
-        return new File(getCache().getBaseDir(), cacheName + ".bin");
+        BTreePersistentIndexedCache btree = new BTreePersistentIndexedCache(new File(cacheName), new DefaultSerializer<K>(keyType.getClassLoader()), new DefaultSerializer<V>(valueType.getClassLoader()));
+        return new ThreadSafeCache(btree);
     }
 
     public <T> T useCache(String operationDisplayName, Factory<? extends T> action) {
-        return getCache().useCache(operationDisplayName, action);
+        return action.create();
     }
 
     public void useCache(String operationDisplayName, Runnable action) {
-        getCache().useCache(operationDisplayName, action);
+        action.run();
     }
 
     public void longRunningOperation(String operationDisplayName, Runnable action) {
-        getCache().longRunningOperation(operationDisplayName, action);
+        action.run();
+    }
+
+    private class ThreadSafeCache implements PersistentIndexedCache {
+        private final BTreePersistentIndexedCache delegate;
+        private final Lock lock = new ReentrantLock();
+
+        public ThreadSafeCache(BTreePersistentIndexedCache delegate) {
+            this.delegate = delegate;
+        }
+
+        public Object get(Object key) {
+            lock.lock();
+            try {
+                return delegate.get(key);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        public void put(Object key, Object value) {
+            lock.lock();
+            try {
+                delegate.put(key, value);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        public void remove(Object key) {
+            lock.lock();
+            try {
+                delegate.remove(key);
+            } finally {
+                lock.unlock();
+            }
+        }
     }
 }
