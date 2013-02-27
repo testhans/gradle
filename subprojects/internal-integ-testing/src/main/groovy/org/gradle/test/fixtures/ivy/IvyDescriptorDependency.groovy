@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-package org.gradle.api.publish.ivy.internal.publisher;
+package org.gradle.test.fixtures.ivy
 
-public interface IvyProjectIdentity {
-    String getOrganisation();
+class IvyDescriptorDependency {
+    String org
+    String module
+    String revision
+    String conf
 
-    void setOrganisation(String organisation);
-
-    String getModule();
-
-    void setModule(String module);
-
-    String getRevision();
-
-    void setRevision(String revision);
+    IvyDescriptorDependency hasConf(def conf) {
+        assert this.conf == conf
+        return this
+    }
 }

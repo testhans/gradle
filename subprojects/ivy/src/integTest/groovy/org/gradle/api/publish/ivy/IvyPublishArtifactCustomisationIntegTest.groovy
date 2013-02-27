@@ -161,6 +161,10 @@ class IvyPublishArtifactCustomisationIntegTest extends AbstractIvyPublishIntegTe
         createBuildScripts("""
             publications {
                 ivy(IvyPublication) {
+                    configurations {
+                        mod_conf {}
+                        other {}
+                    }
                     artifact source: "customFile.txt", name: "customFile"
                     artifact source: customDocsTask.outputFile, name: "docs", builtBy: customDocsTask
                     artifact source: customJar
@@ -169,7 +173,7 @@ class IvyPublishArtifactCustomisationIntegTest extends AbstractIvyPublishIntegTe
 """, """
             publishing.publications.ivy.artifacts.each {
                 it.extension = "mod"
-                it.conf = "mod-conf"
+                it.conf = "mod_conf"
             }
 """)
         when:
@@ -191,7 +195,7 @@ class IvyPublishArtifactCustomisationIntegTest extends AbstractIvyPublishIntegTe
         createBuildScripts("""
             publications {
                 ivy(IvyPublication) {
-                    artifact source: 'no-extension', name: 'no-extension'
+                    artifact source: 'no-extension', name: 'no-extension', type: 'ext-less'
                 }
             }
 """)
@@ -201,7 +205,7 @@ class IvyPublishArtifactCustomisationIntegTest extends AbstractIvyPublishIntegTe
         then:
         module.assertPublished()
         module.assertArtifactsPublished("ivy-2.4.xml", "no-extension-2.4")
-        module.ivy.expectArtifact("no-extension").hasAttributes(null, null, null)
+        module.ivy.expectArtifact("no-extension").hasAttributes("", "ext-less", null)
 
         // TODO:DAZ Fix publication with empty extension so it can be resolved
 //        and:
@@ -260,12 +264,12 @@ class IvyPublishArtifactCustomisationIntegTest extends AbstractIvyPublishIntegTe
 
     def "reports failure publishing when validation fails"() {
         given:
-        file("a-directory").createDir()
+        file("a-directory.dir").createDir()
 
         createBuildScripts("""
             publications {
                 ivy(IvyPublication) {
-                    artifact "a-directory"
+                    artifact "a-directory.dir"
                 }
             }
 """)
@@ -275,7 +279,7 @@ class IvyPublishArtifactCustomisationIntegTest extends AbstractIvyPublishIntegTe
         then:
         failure.assertHasDescription("Execution failed for task ':publishIvyPublicationToIvyRepository'.")
         failure.assertHasCause("Failed to publish publication 'ivy' to repository 'ivy'")
-        failure.assertHasCause("Cannot publish ivy publication 'ivy': artifact file is a directory")
+        failure.assertHasCause("Invalid publication 'ivy': artifact file is a directory")
     }
 
     private createBuildScripts(def publications, def append = "") {

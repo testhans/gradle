@@ -17,11 +17,14 @@ package org.gradle.api.internal.artifacts.repositories;
 
 import groovy.lang.Closure;
 import org.apache.ivy.core.module.id.ArtifactRevisionId;
+import org.apache.ivy.plugins.resolver.DependencyResolver;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.artifacts.repositories.ArtifactRepositoryMetaDataProvider;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.IvyMetaDataProvider;
 import org.gradle.api.artifacts.repositories.PasswordCredentials;
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ExternalResourceResolverAdapter;
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.IvyAwareModuleVersionRepository;
 import org.gradle.api.internal.artifacts.repositories.layout.*;
 import org.gradle.api.internal.artifacts.repositories.resolver.IvyResolver;
 import org.gradle.api.internal.artifacts.repositories.resolver.PatternBasedResolver;
@@ -58,7 +61,24 @@ public class DefaultIvyArtifactRepository extends AbstractAuthenticationSupporte
         this.instantiator = instantiator;
     }
 
-    public IvyResolver createResolver() {
+    public DependencyResolver createResolver() {
+        IvyResolver resolver = createRealResolver();
+        return new LegacyDependencyResolver(resolver, wrapResolver(resolver));
+    }
+
+    public DependencyResolver createPublisher() {
+        return createRealResolver();
+    }
+
+    public IvyAwareModuleVersionRepository createResolveRepository() {
+        return wrapResolver(createRealResolver());
+    }
+
+    private ExternalResourceResolverAdapter wrapResolver(IvyResolver resolver) {
+        return new ExternalResourceResolverAdapter(resolver, metaDataProvider.dynamicResolve);
+    }
+
+    protected IvyResolver createRealResolver() {
         URI uri = getUrl();
 
         Set<String> schemes = new LinkedHashSet<String>();
@@ -120,7 +140,7 @@ public class DefaultIvyArtifactRepository extends AbstractAuthenticationSupporte
         ConfigureUtil.configure(config, layout);
     }
 
-    public ArtifactRepositoryMetaDataProvider getMetaData() {
+    public ArtifactRepositoryMetaDataProvider getResolve() {
         return metaDataProvider;
     }
 

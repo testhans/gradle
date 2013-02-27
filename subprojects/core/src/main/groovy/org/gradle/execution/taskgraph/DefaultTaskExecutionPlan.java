@@ -162,7 +162,6 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
                     allTasksComplete = allTasksComplete && taskInfo.isComplete();
                     if (taskInfo.isReady() && taskInfo.allDependenciesComplete() && !runningProjects.contains(taskInfo.getTask().getProject().getPath())) {
                         nextMatching = taskInfo;
-                        runningProjects.add(taskInfo.getTask().getProject().getPath());
                         break;
                     }
                 }
@@ -178,6 +177,7 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
                 } else {
                     if (nextMatching.allDependenciesSuccessful()) {
                         nextMatching.startExecution();
+                        runningProjects.add(nextMatching.getTask().getProject().getPath());
                         return nextMatching;
                     } else {
                         nextMatching.skipExecution();
@@ -188,10 +188,6 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
         } finally {
             lock.unlock();
         }
-    }
-
-    public Collection<TaskInfo> allTasks() {
-        return executionPlan.values();
     }
 
     private TaskInfo getNextReadyAndMatching(Spec<TaskInfo> criteria) {

@@ -155,7 +155,7 @@ class MavenPublishArtifactCustomisationIntegTest extends AbstractMavenPublishInt
             publications {
                 mavenCustom(MavenPublication) {
                     from components.java
-                    artifact source: "customFile.txt", extension: null, classifier: "classified"
+                    artifact source: "customFile.txt", extension: "", classifier: "classified"
                 }
             }
 """)
@@ -174,12 +174,12 @@ class MavenPublishArtifactCustomisationIntegTest extends AbstractMavenPublishInt
 
     def "reports failure publishing when validation fails"() {
         given:
-        file("a-directory").createDir()
+        file("a-directory.dir").createDir()
 
         createBuildScripts("""
             publications {
                 mavenCustom(MavenPublication) {
-                    artifact "a-directory"
+                    artifact "a-directory.dir"
                 }
             }
 """)
@@ -189,7 +189,7 @@ class MavenPublishArtifactCustomisationIntegTest extends AbstractMavenPublishInt
         then:
         failure.assertHasDescription("Execution failed for task ':publishMavenCustomPublicationToMavenRepository'.")
         failure.assertHasCause("Failed to publish publication 'mavenCustom' to repository 'maven'")
-        failure.assertHasCause("Cannot publish maven publication 'mavenCustom': artifact file is a directory")
+        failure.assertHasCause("Invalid publication 'mavenCustom': artifact file is a directory")
     }
 
     private createBuildScripts(def publications, def append = "") {

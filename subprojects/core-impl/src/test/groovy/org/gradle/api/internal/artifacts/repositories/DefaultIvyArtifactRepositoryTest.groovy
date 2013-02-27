@@ -18,7 +18,8 @@ package org.gradle.api.internal.artifacts.repositories
 import org.apache.ivy.core.cache.RepositoryCacheManager
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.artifacts.repositories.PasswordCredentials
-import org.gradle.api.internal.artifacts.repositories.resolver.ExternalResourceResolver
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ExternalResourceResolverAdapter
+import org.gradle.api.internal.artifacts.repositories.resolver.IvyResolver
 import org.gradle.api.internal.artifacts.repositories.transport.RepositoryTransportFactory
 import org.gradle.api.internal.externalresource.cached.CachedExternalResourceIndex
 import org.gradle.api.internal.externalresource.local.LocallyAvailableResourceFinder
@@ -47,7 +48,7 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
     def "default values"() {
         expect:
         repository.url == null
-        !repository.metaData.ivy.dynamicResolveMode
+        !repository.resolve.ivy.dynamicResolveMode
     }
 
     def "cannot create a resolver for url with unknown scheme"() {
@@ -58,7 +59,7 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         fileResolver.resolveUri('pattern1') >> new URI('scheme:resource1')
 
         when:
-        repository.createResolver()
+        repository.createRealResolver()
 
         then:
         InvalidUserDataException e = thrown()
@@ -75,7 +76,7 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         fileResolver.resolveUri('pattern2') >> new URI('file:resource2')
 
         when:
-        repository.createResolver()
+        repository.createRealResolver()
 
         then:
         InvalidUserDataException e = thrown()
@@ -94,11 +95,11 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         transportFactory.createHttpTransport('name', credentials) >> createHttpTransport("name", credentials)
 
         when:
-        def resolver = repository.createResolver()
+        def resolver = repository.createRealResolver()
 
         then:
         with(resolver) {
-            it instanceof ExternalResourceResolver
+            it instanceof IvyResolver
             repository instanceof ExternalResourceRepository
             name == 'name'
             artifactPatterns == ['http://host/[organisation]/[artifact]-[revision].[ext]', 'http://other/[module]/[artifact]-[revision].[ext]']
@@ -119,16 +120,43 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         transportFactory.createFileTransport('name') >> new FileTransport('name', cacheManager, Mock(TemporaryFileProvider))
 
         when:
-        def resolver = repository.createResolver()
+        def resolver = repository.createRealResolver()
 
         then:
         with(resolver) {
-            it instanceof ExternalResourceResolver
+            it instanceof IvyResolver
             repository instanceof ExternalResourceRepository
             name == 'name'
             artifactPatterns == ["${file.absolutePath}/[organisation]/[artifact]-[revision].[ext]", "${file.absolutePath}/[organisation]/[module]/[artifact]-[revision].[ext]"]
             ivyPatterns == ["${file.absolutePath}/[organisation]/[module]/ivy-[revision].xml"]
         }
+    }
+
+    def "creates a DSL wrapper for resolver"() {
+        repository.name = 'name'
+        repository.artifactPattern 'repo/[organisation]/[artifact]-[revision].[ext]'
+        def file = new File("test")
+        def fileUri = file.toURI()
+
+        given:
+        fileResolver.resolveUri('repo/') >> fileUri
+        transportFactory.createFileTransport('name') >> new FileTransport('name', cacheManager, Mock(TemporaryFileProvider))
+
+        when:
+        def wrapper = repository.createResolver()
+
+        then:
+        with(wrapper) {
+            it instanceof LegacyDependencyResolver
+            resolver instanceof IvyResolver
+        }
+
+        when:
+        def repo = wrapper.createResolveRepository()
+
+        then:
+        repo instanceof ExternalResourceResolverAdapter
+        repo.resolver.is(wrapper.resolver)
     }
 
     def "uses gradle patterns with specified url and default layout"() {
@@ -140,11 +168,11 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         transportFactory.createHttpTransport('name', credentials) >> createHttpTransport("name", credentials)
 
         when:
-        def resolver = repository.createResolver()
+        def resolver = repository.createRealResolver()
 
         then:
         with(resolver) {
-            it instanceof ExternalResourceResolver
+            it instanceof IvyResolver
             repository instanceof ExternalResourceRepository
             name == 'name'
             artifactPatterns == ['http://host/[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier])(.[ext])']
@@ -162,11 +190,11 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         transportFactory.createHttpTransport('name', credentials) >> createHttpTransport("name", credentials)
 
         when:
-        def resolver = repository.createResolver()
+        def resolver = repository.createRealResolver()
 
         then:
         with(resolver) {
-            it instanceof ExternalResourceResolver
+            it instanceof IvyResolver
             repository instanceof ExternalResourceRepository
             name == 'name'
             artifactPatterns == ['http://host/[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier])(.[ext])']
@@ -188,11 +216,11 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         transportFactory.createHttpTransport('name', credentials) >> createHttpTransport("name", credentials)
 
         when:
-        def resolver = repository.createResolver()
+        def resolver = repository.createRealResolver()
 
         then:
         with(resolver) {
-            it instanceof ExternalResourceResolver
+            it instanceof IvyResolver
             repository instanceof ExternalResourceRepository
             name == 'name'
             artifactPatterns == ['http://host/[module]/[revision]/[artifact](.[ext])']
@@ -215,11 +243,11 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         transportFactory.createHttpTransport('name', credentials) >> createHttpTransport("name", credentials)
 
         when:
-        def resolver = repository.createResolver()
+        def resolver = repository.createRealResolver()
 
         then:
         with(resolver) {
-            it instanceof ExternalResourceResolver
+            it instanceof IvyResolver
             repository instanceof ExternalResourceRepository
             name == 'name'
             artifactPatterns == ['http://host/[module]/[revision]/[artifact](.[ext])']
@@ -239,11 +267,11 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         transportFactory.createHttpTransport('name', credentials) >> createHttpTransport("name", credentials)
 
         when:
-        def resolver = repository.createResolver()
+        def resolver = repository.createRealResolver()
 
         then:
         with(resolver) {
-            it instanceof ExternalResourceResolver
+            it instanceof IvyResolver
             repository instanceof ExternalResourceRepository
             name == 'name'
             artifactPatterns == ['http://host/[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier])(.[ext])', 'http://host/[other]/artifact']
@@ -265,7 +293,7 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         fileResolver.resolveUri('http://other/') >> new URI('http://other/')
 
         when:
-        def resolver = repository.createResolver()
+        def resolver = repository.createRealResolver()
 
         then:
         resolver.artifactPatterns == ['http://host/[layoutPattern]', 'http://other/[additionalPattern]']
@@ -277,7 +305,7 @@ class DefaultIvyArtifactRepositoryTest extends Specification {
         transportFactory.createHttpTransport('name', credentials) >> createHttpTransport("name", credentials)
 
         when:
-        repository.createResolver()
+        repository.createRealResolver()
 
         then:
         InvalidUserDataException e = thrown()

@@ -22,12 +22,13 @@ import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.internal.changedetection.TaskArtifactStateCacheAccess;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.util.Clock;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.gradle.util.Clock.prettyTime;
 
 class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
     private static final Logger LOGGER = Logging.getLogger(ParallelTaskPlanExecutor.class);
@@ -48,7 +49,6 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
     }
 
     public void process(final TaskExecutionPlan taskExecutionPlan, final TaskExecutionListener taskListener) {
-        spitGraph(taskExecutionPlan);
         stateCacheAccess.longRunningOperation("Executing all tasks", new Runnable() {
             public void run() {
                 doProcess(taskExecutionPlan, taskListener);
@@ -56,23 +56,6 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
                 taskExecutionPlan.awaitCompletion();
             }
         });
-    }
-
-    private void spitGraph(TaskExecutionPlan taskExecutionPlan) {
-        StringBuilder sb = new StringBuilder("******\ngraph tasks {\n");
-        for (TaskInfo taskInfo : taskExecutionPlan.allTasks()) {
-            if (!taskInfo.getDependencies().isEmpty()) {
-                sb.append(taskInfo.getTask().getPath()).append(" -> ");
-                for (TaskInfo d : taskInfo.getDependencies()) {
-                    sb.append(d.getTask().getPath());
-                }
-            } else {
-                sb.append(taskInfo.getTask().getPath());
-            }
-            sb.append("\n");
-        }
-        sb.append("}\n************\n");
-        LOGGER.lifecycle(sb.toString());
     }
 
     private void doProcess(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener) {
@@ -101,7 +84,8 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
     private class TaskExecutorWorker implements Runnable {
         private final TaskExecutionPlan taskExecutionPlan;
         private final TaskExecutionListener taskListener;
-        private long busyMillis;
+        private long busyMs;
+        private long waitedForCacheMs;
 
         private TaskExecutorWorker(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener) {
             this.taskExecutionPlan = taskExecutionPlan;
@@ -110,23 +94,25 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
 
         public void run() {
             long start = System.currentTimeMillis();
-            while(true) {
-                TaskInfo task = taskExecutionPlan.getTaskToExecute();
-                if (task == null) {
-                    break;
-                }
+            TaskInfo task;
+            while((task = taskExecutionPlan.getTaskToExecute()) != null) {
                 executeTaskWithCacheLock(task);
             }
             long total = System.currentTimeMillis() - start;
-            LOGGER.lifecycle("Parallel worker thread [{}] stopped. Was busy for {}, idle for {}", Thread.currentThread(), Clock.prettyTime(busyMillis), Clock.prettyTime(total - busyMillis));
+            LOGGER.info("Parallel worker [{}] stopped, busy: {}, idle: {}, waited for cache: {}", Thread.currentThread(), prettyTime(busyMs), prettyTime(total - busyMs), waitedForCacheMs);
         }
 
         private void executeTaskWithCacheLock(final TaskInfo taskInfo) {
             final String taskPath = taskInfo.getTask().getPath();
             LOGGER.info(taskPath + " (" + Thread.currentThread() + " - start");
-            long start = System.currentTimeMillis();
-            processTask(taskInfo, taskExecutionPlan, taskListener);
-            busyMillis += System.currentTimeMillis() - start;
+            final long start = System.currentTimeMillis();
+            stateCacheAccess.useCache("Executing " + taskPath, new Runnable() {
+                public void run() {
+                    waitedForCacheMs += System.currentTimeMillis() - start;
+                    processTask(taskInfo, taskExecutionPlan, taskListener);
+                }
+            });
+            busyMs += System.currentTimeMillis() - start;
 
             LOGGER.info(taskPath + " (" + Thread.currentThread() + ") - complete");
         }

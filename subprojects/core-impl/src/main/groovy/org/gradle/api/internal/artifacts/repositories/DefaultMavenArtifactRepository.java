@@ -17,9 +17,12 @@ package org.gradle.api.internal.artifacts.repositories;
 
 import com.google.common.collect.Lists;
 import org.apache.ivy.core.module.id.ArtifactRevisionId;
+import org.apache.ivy.plugins.resolver.DependencyResolver;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.artifacts.repositories.PasswordCredentials;
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ExternalResourceResolverAdapter;
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.IvyAwareModuleVersionRepository;
 import org.gradle.api.internal.artifacts.repositories.resolver.MavenResolver;
 import org.gradle.api.internal.artifacts.repositories.transport.RepositoryTransport;
 import org.gradle.api.internal.artifacts.repositories.transport.RepositoryTransportFactory;
@@ -71,7 +74,24 @@ public class DefaultMavenArtifactRepository extends AbstractAuthenticationSuppor
         additionalUrls = Lists.newArrayList(urls);
     }
 
-    public MavenResolver createResolver() {
+    public DependencyResolver createPublisher() {
+        return createRealResolver();
+    }
+
+    public DependencyResolver createResolver() {
+        MavenResolver resolver = createRealResolver();
+        return new LegacyMavenResolver(resolver, wrapResolver(resolver));
+    }
+
+    public IvyAwareModuleVersionRepository createResolveRepository() {
+        return wrapResolver(createRealResolver());
+    }
+
+    private ExternalResourceResolverAdapter wrapResolver(MavenResolver resolver) {
+        return new ExternalResourceResolverAdapter(resolver, false);
+    }
+
+    protected MavenResolver createRealResolver() {
         URI rootUri = getUrl();
         if (rootUri == null) {
             throw new InvalidUserDataException("You must specify a URL for a Maven repository.");

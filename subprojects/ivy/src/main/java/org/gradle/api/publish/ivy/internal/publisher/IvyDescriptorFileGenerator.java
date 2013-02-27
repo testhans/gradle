@@ -26,8 +26,7 @@ import org.gradle.api.internal.xml.SimpleXmlWriter;
 import org.gradle.api.internal.xml.XmlTransformer;
 import org.gradle.api.publish.ivy.IvyArtifact;
 import org.gradle.api.publish.ivy.IvyConfiguration;
-import org.gradle.api.publish.ivy.IvyDependency;
-import org.gradle.api.publish.ivy.internal.dependency.DefaultIvyDependency;
+import org.gradle.api.publish.ivy.internal.dependency.IvyDependencyInternal;
 import org.gradle.util.CollectionUtils;
 
 import java.io.File;
@@ -43,14 +42,14 @@ public class IvyDescriptorFileGenerator {
     private static final String IVY_DATE_PATTERN = "yyyyMMddHHmmss";
 
     private final SimpleDateFormat ivyDateFormat = new SimpleDateFormat(IVY_DATE_PATTERN);
-    private final IvyProjectIdentity projectIdentity;
+    private final IvyPublicationIdentity projectIdentity;
     private String status;
     private XmlTransformer xmlTransformer = new XmlTransformer();
     private List<IvyConfiguration> configurations = new ArrayList<IvyConfiguration>();
     private List<IvyArtifact> artifacts = new ArrayList<IvyArtifact>();
-    private List<DefaultIvyDependency> dependencies = new ArrayList<DefaultIvyDependency>();
+    private List<IvyDependencyInternal> dependencies = new ArrayList<IvyDependencyInternal>();
 
-    public IvyDescriptorFileGenerator(IvyProjectIdentity projectIdentity) {
+    public IvyDescriptorFileGenerator(IvyPublicationIdentity projectIdentity) {
         this.projectIdentity = projectIdentity;
     }
 
@@ -68,8 +67,8 @@ public class IvyDescriptorFileGenerator {
         return this;
     }
 
-    public IvyDescriptorFileGenerator addDependency(IvyDependency ivyDependency) {
-        dependencies.add((DefaultIvyDependency) ivyDependency);
+    public IvyDescriptorFileGenerator addDependency(IvyDependencyInternal ivyDependency) {
+        dependencies.add(ivyDependency);
         return this;
     }
 
@@ -117,7 +116,7 @@ public class IvyDescriptorFileGenerator {
                 return true;
             }
         }
-        for (DefaultIvyDependency dependency : this.dependencies) {
+        for (IvyDependencyInternal dependency : this.dependencies) {
             for (DependencyArtifact dependencyArtifact : dependency.getModuleDependency().getArtifacts()) {
                 if (dependencyArtifact.getClassifier() != null) {
                     return true;
@@ -128,9 +127,6 @@ public class IvyDescriptorFileGenerator {
     }
 
     private void writeConfigurations(OptionalAttributeXmlWriter xmlWriter) throws IOException {
-        if (configurations.isEmpty()) {
-            return;
-        }
         xmlWriter.startElement("configurations");
         for (IvyConfiguration configuration : configurations) {
             xmlWriter.startElement("conf")
@@ -145,11 +141,10 @@ public class IvyDescriptorFileGenerator {
     }
 
     private void writePublications(OptionalAttributeXmlWriter xmlWriter) throws IOException {
-        // Do not omit empty publications element, since this implies a single jar artifact in ivy-land.
         xmlWriter.startElement("publications");
         for (IvyArtifact artifact : artifacts) {
             xmlWriter.startElement("artifact")
-                    .attribute("name", artifact.getName(), projectIdentity.getModule()) // TODO:DAZ We don't need this, since it's the ivy default. But I think it's nicer to be explicit.
+                    .attribute("name", artifact.getName())
                     .attribute("type", artifact.getType())
                     .attribute("ext", artifact.getExtension())
                     .attribute("conf", artifact.getConf())
@@ -160,12 +155,8 @@ public class IvyDescriptorFileGenerator {
     }
 
     private void writeDependencies(OptionalAttributeXmlWriter xmlWriter) throws IOException {
-        if (dependencies.isEmpty()) {
-            return;
-        }
-
         xmlWriter.startElement("dependencies");
-        for (DefaultIvyDependency dependency : dependencies) {
+        for (IvyDependencyInternal dependency : dependencies) {
             ModuleDependency dep = dependency.getModuleDependency();
             xmlWriter.startElement("dependency")
                     .attribute("org", dep.getGroup())
@@ -208,7 +199,7 @@ public class IvyDescriptorFileGenerator {
 
         @Override
         public OptionalAttributeXmlWriter attribute(String name, String value) throws IOException {
-            if (value != null && value.length() != 0) {
+            if (value != null) {
                 super.attribute(name, value);
             }
             return this;

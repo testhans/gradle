@@ -24,8 +24,9 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.publish.ivy.internal.artifact.DefaultIvyArtifact
 import org.gradle.api.publish.ivy.internal.dependency.DefaultIvyDependency
 import org.gradle.api.publish.ivy.internal.publication.DefaultIvyConfiguration
-import org.gradle.api.publish.ivy.internal.publication.DefaultIvyProjectIdentity
+import org.gradle.api.publish.ivy.internal.publication.DefaultIvyPublicationIdentity
 import org.gradle.test.fixtures.file.TestDirectoryProvider
+import org.gradle.test.fixtures.file.TestFile
 import org.gradle.test.fixtures.file.TestNameTestDirectoryProvider
 import org.gradle.util.CollectionUtils
 import org.gradle.util.TextUtil
@@ -33,12 +34,12 @@ import spock.lang.Specification
 
 class IvyDescriptorFileGeneratorTest extends Specification {
     TestDirectoryProvider testDirectoryProvider = new TestNameTestDirectoryProvider()
-    def projectIdentity = new DefaultIvyProjectIdentity("my-org", "my-name", "my-version")
+    def projectIdentity = new DefaultIvyPublicationIdentity("my-org", "my-name", "my-version")
     IvyDescriptorFileGenerator generator = new IvyDescriptorFileGenerator(projectIdentity)
 
     def "writes correct prologue and schema declarations"() {
         expect:
-        ivyFileContent.startsWith(TextUtil.toPlatformLineSeparators(
+        ivyFile.text.startsWith(TextUtil.toPlatformLineSeparators(
 """<?xml version="1.0" encoding="UTF-8"?>
 <ivy-module version="2.0">
 """))
@@ -51,10 +52,26 @@ class IvyDescriptorFileGeneratorTest extends Specification {
             info.@module == "my-name"
             info.@revision == "my-version"
             info.@status.isEmpty()
-            configurations.isEmpty()
+            configurations.size() == 1
+            configurations.conf.isEmpty()
             publications.size() == 1
             publications.artifacts.isEmpty()
-            dependencies.isEmpty()
+            dependencies.size() == 1
+            dependencies.dependency.isEmpty()
+        }
+    }
+
+    def "encodes coordinates for XML and unicode"() {
+        when:
+        def projectIdentity = new DefaultIvyPublicationIdentity('org-ぴ₦ガき∆ç√∫', 'module-<tag attrib="value"/>-markup', 'version-&"')
+        generator = new IvyDescriptorFileGenerator(projectIdentity)
+
+
+        then:
+        with (ivyXml) {
+            info.@organisation == 'org-ぴ₦ガき∆ç√∫'
+            info.@module == 'module-<tag attrib="value"/>-markup'
+            info.@revision == 'version-&"'
         }
     }
 
@@ -92,7 +109,7 @@ class IvyDescriptorFileGeneratorTest extends Specification {
     def "writes supplied publication artifacts"() {
         when:
         def artifact1 = new DefaultIvyArtifact(null, "artifact1", "ext1", "type1", "classy")
-        def artifact2 = new DefaultIvyArtifact(null, null, null, null, null)
+        def artifact2 = new DefaultIvyArtifact(null, null, "", null, null)
         artifact2.setConf("runtime")
         generator.addArtifact(artifact1)
         generator.addArtifact(artifact2)
@@ -110,9 +127,9 @@ class IvyDescriptorFileGeneratorTest extends Specification {
                 it.@conf.isEmpty()
             }
             with (publications[0].artifact[1]) {
-                it.@name == "my-name"
+                it.@name.isEmpty()
                 it.@type.isEmpty()
-                it.@ext.isEmpty()
+                it.@ext == ""
                 it.@classifier.isEmpty()
                 it.@conf == "runtime"
             }
@@ -138,7 +155,7 @@ class IvyDescriptorFileGeneratorTest extends Specification {
 
         and:
         generator.addDependency(new DefaultIvyDependency(projectDependency, "confMappingProject"))
-        generator.addDependency(new DefaultIvyDependency(moduleDependency, "confMappingModule"))
+        generator.addDependency(new DefaultIvyDependency(moduleDependency, null))
 
         then:
         with (ivyXml) {
@@ -153,7 +170,7 @@ class IvyDescriptorFileGeneratorTest extends Specification {
                 it.@org == "dep-group"
                 it.@name == "dep-name-2"
                 it.@rev == "dep-version"
-                it.@conf == "confMappingModule"
+                it.@conf.isEmpty()
             }
         }
     }
@@ -217,7 +234,7 @@ class IvyDescriptorFileGeneratorTest extends Specification {
         })
         generator.withXml(new Action<XmlProvider>() {
             void execute(XmlProvider t) {
-                t.asNode().info[0].appendNode("description", "custom-description")
+                t.asNode().info[0].appendNode("description", "custom-description-ぴ₦ガき∆ç√∫")
             }
         })
 
@@ -225,25 +242,24 @@ class IvyDescriptorFileGeneratorTest extends Specification {
         with (ivyXml) {
             info.@organisation == "my-org"
             info.@revision == "3"
-            info.description == "custom-description"
+            info.description == "custom-description-ぴ₦ガき∆ç√∫"
         }
     }
 
-
     private void includesMavenNamespace() {
-        assert ivyFileContent.startsWith(TextUtil.toPlatformLineSeparators(
+        assert ivyFile.text.startsWith(TextUtil.toPlatformLineSeparators(
                 """<?xml version="1.0" encoding="UTF-8"?>
 <ivy-module version="2.0" xmlns:m="http://ant.apache.org/ivy/maven">
 """))
     }
 
     private def getIvyXml() {
-        return new XmlSlurper().parse(new StringReader(ivyFileContent));
+        return new XmlSlurper().parse(ivyFile);
     }
 
-    private String getIvyFileContent() {
+    private TestFile getIvyFile() {
         def ivyFile = testDirectoryProvider.testDirectory.file("ivy.xml")
         generator.writeTo(ivyFile)
-        return ivyFile.text
+        return ivyFile
     }
 }

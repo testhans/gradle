@@ -19,7 +19,6 @@ package org.gradle.execution.taskgraph;
 import org.gradle.api.Task;
 import org.gradle.api.specs.Spec;
 
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -51,7 +50,6 @@ public interface TaskExecutionPlan {
      */
     List<Task> getTasks();
 
+    //TODO SF this should replace completely getTaskToExecute(), inherit and expand existing unit test coverage
     TaskInfo getTaskToExecute();
-
-    Collection<TaskInfo> allTasks();
 }
