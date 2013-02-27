@@ -49,7 +49,7 @@ public class TaskExecutionServices extends DefaultServiceRegistry {
                                                                         new ExecuteActionsTaskExecuter(
                                                                                 get(ListenerManager.class).getBroadcaster(TaskActionListener.class))),
                                                                 get(TaskArtifactStateCacheAccess.class)),
-                                                        get(TaskArtifactStateRepository.class), get(TaskArtifactStateCacheAccess.class)))))));
+                                                        get(TaskArtifactStateRepository.class)))))));
     }
 
     protected TaskArtifactStateCacheAccess createCacheAccess() {
