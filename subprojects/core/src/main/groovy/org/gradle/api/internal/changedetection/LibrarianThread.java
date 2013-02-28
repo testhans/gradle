@@ -132,6 +132,8 @@ public class LibrarianThread<K, V> {
         private boolean stopped;
         private long totalBlocked;
         private long totalIdle;
+        private int unlockedCache;
+        private int cacheUnlockingFrequency = 2000;
 
         public V get(final K key, final PersistentIndexedCache delegate) {
             lock.lock();
@@ -214,13 +216,14 @@ public class LibrarianThread<K, V> {
             }
             long totalTime = System.currentTimeMillis() - start;
             long busyTime = totalTime - totalIdle;
-            LOG.lifecycle("Task history access. Busy: {}, Idle: {}, Blocked reads: {}",
-                    prettyTime(busyTime), prettyTime(totalIdle), prettyTime(totalBlocked));
+            LOG.lifecycle("Task history access. Busy: {}, Idle: {}, Blocked reads: {}, Unlocked cache times: {}",
+                    prettyTime(busyTime), prettyTime(totalIdle), prettyTime(totalBlocked), unlockedCache);
         }
 
         private void runNow() {
             lock.lock();
             try {
+                long nextUnlock = System.currentTimeMillis() + cacheUnlockingFrequency;
                 while(true) {
                     if (!readQueue.isEmpty()) {
                         Factory<V> factory = readQueue.removeFirst();
@@ -234,23 +237,34 @@ public class LibrarianThread<K, V> {
                         if (stopRequested) {
                             break;
                         }
-                        cache.longRunningOperation("Librarian is idle and awaits task history cache requests", new Runnable() {
-                            public void run() {
-                                try {
-                                    long start = System.currentTimeMillis();
-                                    accessRequested.await();
-                                    totalIdle += System.currentTimeMillis() - start;
-                                } catch (InterruptedException e) {
-                                    throw new RuntimeException(e);
+                        long start = System.currentTimeMillis();
+                        if (start > nextUnlock) {
+                            nextUnlock = start + cacheUnlockingFrequency;
+                            unlockedCache++;
+                            cache.longRunningOperation("Librarian is idle and awaits task history cache requests", new Runnable() {
+                                public void run() {
+                                    await();
                                 }
-                            }
-                        });
+                            });
+                        } else {
+                            await();
+                        }
                     }
                 }
             } finally {
                 lock.unlock();
             }
             stopped = true;
+        }
+
+        private void await() {
+            try {
+                long startAwait = System.currentTimeMillis();
+                accessRequested.await();
+                totalIdle += System.currentTimeMillis() - startAwait;
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         public void requestStop() {
