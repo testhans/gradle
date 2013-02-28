@@ -128,6 +128,7 @@ public class LibrarianThread<K, V> {
         private final LinkedList<Runnable> writes = new LinkedList<Runnable>();
         private boolean stopRequested;
         private boolean stopped;
+        private long totalWaited;
 
         public V get(final K key, final PersistentIndexedCache delegate) {
             lock.lock();
@@ -196,7 +197,7 @@ public class LibrarianThread<K, V> {
             try {
                 cache = cacheFactory.create();
                 assert cache instanceof ReferencablePersistentCache : "Cache must be of type ReferencablePersistentCache so that we can close it.";
-                cache.useCache("librarian thread", new Runnable() {
+                cache.useCache("Librarian owns the task history cache", new Runnable() {
                     public void run() {
                         runNow();
                     }
@@ -223,11 +224,15 @@ public class LibrarianThread<K, V> {
                         if (stopRequested) {
                             break;
                         }
-                        try {
-                            accessRequested.await();
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
+                        cache.longRunningOperation("Librarian is idle and awaits task history cache requests", new Runnable() {
+                            public void run() {
+                                try {
+                                    accessRequested.await();
+                                } catch (InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        });
                     }
                 }
             } finally {
