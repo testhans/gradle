@@ -133,7 +133,7 @@ public class LibrarianThread<K, V> {
         private long totalBlocked;
         private long totalIdle;
         private int unlockedCache;
-        private int cacheUnlockingFrequency = Integer.valueOf(System.getProperty("cacheFrequency", "500"));
+        private int cacheUnlockingFrequency = Integer.valueOf(System.getProperty("cacheFrequency", "2000"));
         private long totalCacheUnlocked;
 
         public V get(final K key, final PersistentIndexedCache delegate) {
