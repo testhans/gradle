@@ -71,8 +71,8 @@ public class ParallelProjectExecutionIntegrationTest extends AbstractIntegration
         """
 
         expect:
-        run 'build', '--parallel-threads', '2', '-i'
-//        run 'build', '--parallel-threads', '2', '-i'
+        run 'build', '--parallel-threads', '2'
+        run 'build', '--parallel-threads', '2'
     }
 
     def "java compilation 2"() {
@@ -112,8 +112,8 @@ public class ParallelProjectExecutionIntegrationTest extends AbstractIntegration
         """
 
         expect:
-        run 'build', '--parallel-threads', '2', '-i'
-        run 'build', '--parallel-threads', '2', '-i'
+        run 'build', '--parallel-threads', '2'
+        run 'build', '--parallel-threads', '2'
     }
 
 }

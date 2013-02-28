@@ -18,7 +18,7 @@ package org.gradle.cache.internal;
 
 import org.gradle.cache.PersistentCache;
 
-public interface ReferencablePersistentCache extends PersistentCache{
+public interface ReferencablePersistentCache extends PersistentCache {
 
     void close();
     FileLock getLock();

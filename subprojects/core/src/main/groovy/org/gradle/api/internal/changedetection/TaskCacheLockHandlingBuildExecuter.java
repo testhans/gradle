@@ -26,10 +26,11 @@ public class TaskCacheLockHandlingBuildExecuter implements BuildExecutionAction 
     }
 
     public void execute(final BuildExecutionContext context) {
-        cacheAccess.useCache("execute tasks", new Runnable(){
-            public void run() {
-                context.proceed();
-            }
-        });
+        cacheAccess.start();
+        try {
+            context.proceed();
+        } finally {
+            cacheAccess.stop();
+        }
     }
 }

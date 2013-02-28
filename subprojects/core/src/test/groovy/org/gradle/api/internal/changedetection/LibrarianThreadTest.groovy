@@ -39,26 +39,30 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         cacheAccess.useCache(_, _) >> { args ->
             args[1].run()
         }
-        thread = new LibrarianThread()
-        thread.start(cacheAccess)
+        thread = new LibrarianThread(new org.gradle.internal.Factory<PersistentCache>() {
+            PersistentCache create() {
+                return cacheAccess
+            }
+        })
+        thread.start()
         cache = thread.sync(mapCache)
     }
 
     def cleanup() {
-        thread.requestStop()
+        thread.stop()
     }
 
     def "can be stopped"() {
         expect:
-        thread.requestStop()
+        thread.stop()
         poll { assert thread.stopped }
     }
 
     def "can be stopped from multiple threads"() {
         when:
-        start { thread.requestStop() }
-        start { thread.requestStop() }
-        start { thread.requestStop() }
+        start { thread.stop() }
+        start { thread.stop() }
+        start { thread.stop() }
 
         then:
         poll { assert thread.stopped }
@@ -76,7 +80,7 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         cache.get(2) == "bar"
 
         cleanup:
-        thread.requestStop()
+        thread.stop()
     }
 
     def "recognizes different caches"() {
@@ -103,7 +107,7 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         finished()
 
         cleanup:
-        thread.requestStop()
+        thread.stop()
     }
 
     def "can remove from cache"() {
@@ -122,7 +126,7 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         poll { assert data.isEmpty() }
 
         cleanup:
-        thread.requestStop()
+        thread.stop()
     }
 
     def "can write from separate threads"() {
@@ -135,7 +139,7 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         poll { assert data == [1: "foo", 2: "bar", 3: "baz"] }
 
         cleanup:
-        thread.requestStop()
+        thread.stop()
     }
 
     def "can remove from separate threads"() {
@@ -150,7 +154,7 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         poll { assert data.isEmpty() }
 
         cleanup:
-        thread.requestStop()
+        thread.stop()
     }
 
     def "can read from separate threads"() {
@@ -164,7 +168,7 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         finished()
 
         cleanup:
-        thread.requestStop()
+        thread.stop()
     }
 
     def "null cache value is supported"() {
@@ -177,7 +181,7 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         finished()
 
         cleanup:
-        thread.requestStop()
+        thread.stop()
     }
 
     @Ignore //not sure if we need this... e.g. support the case where we're waiting for value that will be written in future
@@ -196,7 +200,7 @@ class LibrarianThreadTest extends ConcurrentSpecification {
         poll { assert values == [1: "foo", 2: "bar", 3: "baz"] }
 
         cleanup:
-        thread.requestStop()
+        thread.stop()
     }
 
     static class MapCache implements PersistentIndexedCache {

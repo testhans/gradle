@@ -21,73 +21,37 @@ import org.gradle.cache.PersistentCache;
 import org.gradle.cache.PersistentIndexedCache;
 import org.gradle.cache.internal.FileLockManager;
 import org.gradle.internal.Factory;
-import org.gradle.listener.LazyCreationProxy;
 import org.gradle.messaging.serialize.Serializer;
 
-import java.io.File;
-
 public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCacheAccess {
-    private final Gradle gradle;
-    private final CacheRepository cacheRepository;
-    private PersistentCache cache;
-    private LibrarianThread librarian = new LibrarianThread();
+    private LibrarianThread librarian;
 
-    public DefaultTaskArtifactStateCacheAccess(Gradle gradle, CacheRepository cacheRepository) {
-        this.gradle = gradle;
-        this.cacheRepository = cacheRepository;
-    }
-
-    public PersistentCache getCache() {
-        if (cache == null) {
-            cache = cacheRepository
-                    .cache("taskArtifacts")
-                    .forObject(gradle)
-                    .withDisplayName("task artifact state cache")
-                    .withLockMode(FileLockManager.LockMode.Exclusive)
-                    .open();
-            librarian.start(cache);
-        }
-        return cache;
+    public DefaultTaskArtifactStateCacheAccess(final Gradle gradle, final CacheRepository cacheRepository) {
+        this.librarian = new LibrarianThread(new Factory<PersistentCache>() {
+            public PersistentCache create() {
+                return cacheRepository
+                        .cache("taskArtifacts")
+                        .forObject(gradle)
+                        .withDisplayName("task artifact state cache")
+                        .withLockMode(FileLockManager.LockMode.Exclusive)
+                        .open();
+            }
+        });
     }
 
     public <K, V> PersistentIndexedCache<K, V> createCache(final String cacheName, final Class<K> keyType, final Class<V> valueType) {
-        Factory<PersistentIndexedCache> factory = new Factory<PersistentIndexedCache>() {
-            public PersistentIndexedCache create() {
-                return getCache().createCache(cacheFile(cacheName), keyType, valueType);
-            }
-        };
-        PersistentIndexedCache lazy = new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
-        return librarian.sync(lazy);
+        return librarian.createCache(cacheName, keyType, valueType);
     }
 
     public <K, V> PersistentIndexedCache<K, V> createCache(final String cacheName, final Class<K> keyType, final Class<V> valueType, final Serializer<V> valueSerializer) {
-        Factory<PersistentIndexedCache> factory = new Factory<PersistentIndexedCache>() {
-            public PersistentIndexedCache create() {
-                return getCache().createCache(cacheFile(cacheName), keyType, valueSerializer);
-            }
-        };
-        PersistentIndexedCache lazy = new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
-        return librarian.sync(lazy);
-    }
-
-    private File cacheFile(String cacheName) {
-        return new File(getCache().getBaseDir(), cacheName + ".bin");
-    }
-
-    public <T> T useCache(String operationDisplayName, Factory<? extends T> action) {
-        //avoid using getCache() here
-        return getCache().useCache(operationDisplayName, action);
-    }
-
-    public void useCache(String operationDisplayName, Runnable action) {
-        getCache().useCache(operationDisplayName, action);
-    }
-
-    public void longRunningOperation(String operationDisplayName, Runnable action) {
-        getCache().longRunningOperation(operationDisplayName, action);
+        return librarian.createCache(cacheName, keyType, valueSerializer);
     }
 
     public void stop() {
-        librarian.requestStop();
+        librarian.stop();
+    }
+
+    public void start() {
+        librarian.start();
     }
 }

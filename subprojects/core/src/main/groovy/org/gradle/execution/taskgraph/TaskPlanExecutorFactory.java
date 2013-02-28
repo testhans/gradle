@@ -16,17 +16,14 @@
 
 package org.gradle.execution.taskgraph;
 
-import org.gradle.api.internal.changedetection.TaskArtifactStateCacheAccess;
 import org.gradle.internal.Factory;
 import org.gradle.util.SingleMessageLogger;
 
 public class TaskPlanExecutorFactory implements Factory<TaskPlanExecutor> {
 
-    private final TaskArtifactStateCacheAccess taskArtifactStateCacheAccess;
     private final int parallelThreads;
 
-    public TaskPlanExecutorFactory(TaskArtifactStateCacheAccess taskArtifactStateCacheAccess, int parallelThreads) {
-        this.taskArtifactStateCacheAccess = taskArtifactStateCacheAccess;
+    public TaskPlanExecutorFactory(int parallelThreads) {
         this.parallelThreads = parallelThreads;
     }
 
@@ -34,7 +31,7 @@ public class TaskPlanExecutorFactory implements Factory<TaskPlanExecutor> {
         ExecutionOptions options = new ExecutionOptions(parallelThreads);
         if (options.executeProjectsInParallel()) {
             SingleMessageLogger.informAboutIncubating("Parallel project execution");
-            return new ParallelTaskPlanExecutor(taskArtifactStateCacheAccess, options.numberOfParallelThreads());
+            return new ParallelTaskPlanExecutor(options.numberOfParallelThreads());
         }
         return new DefaultTaskPlanExecutor();
 

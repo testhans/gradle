@@ -20,8 +20,12 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.cache.PersistentCache;
 import org.gradle.cache.PersistentIndexedCache;
+import org.gradle.cache.internal.ReferencablePersistentCache;
 import org.gradle.internal.Factory;
+import org.gradle.listener.LazyCreationProxy;
+import org.gradle.messaging.serialize.Serializer;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -38,13 +42,16 @@ public class LibrarianThread<K, V> {
     private Librarian librarian;
     private Thread thread;
     private PersistentCache cache;
+    private final Factory<PersistentCache> cacheFactory;
 
-    public LibrarianThread() {
+    public LibrarianThread(Factory<PersistentCache> cacheFactory) {
+        this.cacheFactory = cacheFactory;
+        //creation of the cache must happen in the thread so that lock is owned by correct thread
         this.librarian = new Librarian();
         thread = new Thread(librarian);
     }
 
-    public void requestStop() {
+    public void stop() {
         librarian.requestStop();
         try {
             thread.join();
@@ -53,8 +60,7 @@ public class LibrarianThread<K, V> {
         }
     }
 
-    public synchronized void start(PersistentCache cache) {
-        this.cache = cache;
+    public synchronized void start() {
         thread.start();
     }
 
@@ -76,6 +82,40 @@ public class LibrarianThread<K, V> {
                 librarian.remove(key, delegate);
             }
         };
+    }
+
+    public PersistentCache getCache() {
+        if (cache == null) {
+            throw new IllegalStateException("Librarian thread has not been started yet");
+        }
+        return cache;
+    }
+
+    public PersistentIndexedCache<K, V> createCache(final String cacheName, final Class<K> keyType, final Class<V> valueType) {
+        Factory<PersistentIndexedCache> factory = new Factory<PersistentIndexedCache>() {
+            public PersistentIndexedCache create() {
+                return getCache().createCache(cacheFile(cacheName), keyType, valueType);
+            }
+        };
+        return createCache(factory);
+    }
+
+    private PersistentIndexedCache<K, V> createCache(Factory<PersistentIndexedCache> factory) {
+        PersistentIndexedCache lazy = new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
+        return sync(lazy);
+    }
+
+    private File cacheFile(String cacheName) {
+        return new File(getCache().getBaseDir(), cacheName + ".bin");
+    }
+
+    public PersistentIndexedCache<K, V> createCache(final String cacheName, final Class<K> keyType, final Serializer<V> valueSerializer) {
+        Factory<PersistentIndexedCache> factory = new Factory<PersistentIndexedCache>() {
+            public PersistentIndexedCache create() {
+                return getCache().createCache(cacheFile(cacheName), keyType, valueSerializer);
+            }
+        };
+        return createCache(factory);
     }
 
     private class Librarian implements Runnable {
@@ -154,20 +194,18 @@ public class LibrarianThread<K, V> {
 
         public void run() {
             try {
+                cache = cacheFactory.create();
+                assert cache instanceof ReferencablePersistentCache : "Cache must be of type ReferencablePersistentCache so that we can close it.";
                 cache.useCache("librarian thread", new Runnable() {
                     public void run() {
                         runNow();
                     }
                 });
-            } catch (Exception e) {
+                ((ReferencablePersistentCache) cache).close();
+            } catch (Throwable e) {
                 LOG.error("Problems running the librarian thread", e);
             }
         }
-
-        /*
-
-
-         */
 
         private void runNow() {
             lock.lock();

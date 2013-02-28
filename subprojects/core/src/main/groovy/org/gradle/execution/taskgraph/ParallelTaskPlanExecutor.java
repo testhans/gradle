@@ -19,7 +19,6 @@ package org.gradle.execution.taskgraph;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.execution.TaskExecutionListener;
-import org.gradle.api.internal.changedetection.TaskArtifactStateCacheAccess;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -34,31 +33,21 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
     private static final Logger LOGGER = Logging.getLogger(ParallelTaskPlanExecutor.class);
 
     private final List<Thread> executorThreads = new ArrayList<Thread>();
-    private final TaskArtifactStateCacheAccess stateCacheAccess;
     private final int executorCount;
 
-    public ParallelTaskPlanExecutor(TaskArtifactStateCacheAccess cacheAccess, int numberOfParallelExecutors) {
+    public ParallelTaskPlanExecutor(int numberOfParallelExecutors) {
         if (numberOfParallelExecutors < 1) {
             throw new IllegalArgumentException("Not a valid number of parallel executors: " + numberOfParallelExecutors);
         }
 
         LOGGER.info("Using {} parallel executor threads", numberOfParallelExecutors);
 
-        this.stateCacheAccess = cacheAccess;
         this.executorCount = numberOfParallelExecutors;
     }
 
     public void process(final TaskExecutionPlan taskExecutionPlan, final TaskExecutionListener taskListener) {
-        stateCacheAccess.longRunningOperation("Executing all tasks", new Runnable() {
-            public void run() {
-                try {
-                    doProcess(taskExecutionPlan, taskListener);
-                    taskExecutionPlan.awaitCompletion();
-                } finally {
-                    stateCacheAccess.stop();
-                }
-            }
-        });
+        doProcess(taskExecutionPlan, taskListener);
+        taskExecutionPlan.awaitCompletion();
     }
 
     private void doProcess(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener) {
