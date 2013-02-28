@@ -88,7 +88,6 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
         private final TaskExecutionPlan taskExecutionPlan;
         private final TaskExecutionListener taskListener;
         private long busyMs;
-        private long waitedForCacheMs;
 
         private TaskExecutorWorker(TaskExecutionPlan taskExecutionPlan, TaskExecutionListener taskListener) {
             this.taskExecutionPlan = taskExecutionPlan;
@@ -102,19 +101,14 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
                 executeTaskWithCacheLock(task);
             }
             long total = System.currentTimeMillis() - start;
-            LOGGER.info("Parallel worker [{}] stopped, busy: {}, idle: {}, waited for cache: {}", Thread.currentThread(), prettyTime(busyMs), prettyTime(total - busyMs), waitedForCacheMs);
+            LOGGER.lifecycle("Parallel worker [{}] stopped, busy: {}, idle: {}", Thread.currentThread(), prettyTime(busyMs), prettyTime(total - busyMs));
         }
 
         private void executeTaskWithCacheLock(final TaskInfo taskInfo) {
             final String taskPath = taskInfo.getTask().getPath();
             LOGGER.info(taskPath + " (" + Thread.currentThread() + " - start");
             final long start = System.currentTimeMillis();
-//            stateCacheAccess.useCache("Executing " + taskPath, new Runnable() {
-//                public void run() {
-                    waitedForCacheMs += System.currentTimeMillis() - start;
                     processTask(taskInfo, taskExecutionPlan, taskListener);
-//                }
-//            });
             busyMs += System.currentTimeMillis() - start;
 
             LOGGER.info(taskPath + " (" + Thread.currentThread() + ") - complete");
