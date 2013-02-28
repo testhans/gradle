@@ -33,6 +33,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static org.gradle.util.Clock.prettyTime;
+
 /**
  * by Szczepan Faber, created at: 2/27/13
  */
@@ -128,7 +130,8 @@ public class LibrarianThread<K, V> {
         private final LinkedList<Runnable> writes = new LinkedList<Runnable>();
         private boolean stopRequested;
         private boolean stopped;
-        private long totalWaited;
+        private long totalBlocked;
+        private long totalIdle;
 
         public V get(final K key, final PersistentIndexedCache delegate) {
             lock.lock();
@@ -182,7 +185,9 @@ public class LibrarianThread<K, V> {
             Answer<V> answer;
             while((answer = answers.get(factory)) == null) {
                 try {
+                    long start = System.currentTimeMillis();
                     answerReady.await();
+                    totalBlocked += System.currentTimeMillis() - start;
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -194,6 +199,7 @@ public class LibrarianThread<K, V> {
         }
 
         public void run() {
+            long start = System.currentTimeMillis();
             try {
                 cache = cacheFactory.create();
                 assert cache instanceof ReferencablePersistentCache : "Cache must be of type ReferencablePersistentCache so that we can close it.";
@@ -206,6 +212,10 @@ public class LibrarianThread<K, V> {
             } catch (Throwable e) {
                 LOG.error("Problems running the librarian thread", e);
             }
+            long totalTime = System.currentTimeMillis() - start;
+            long busyTime = totalTime - totalIdle;
+            LOG.lifecycle("Task history access. Busy: {}, Idle: {}, Blocked reads: {}",
+                    prettyTime(busyTime), prettyTime(totalIdle), prettyTime(totalBlocked));
         }
 
         private void runNow() {
@@ -227,7 +237,9 @@ public class LibrarianThread<K, V> {
                         cache.longRunningOperation("Librarian is idle and awaits task history cache requests", new Runnable() {
                             public void run() {
                                 try {
+                                    long start = System.currentTimeMillis();
                                     accessRequested.await();
+                                    totalIdle += System.currentTimeMillis() - start;
                                 } catch (InterruptedException e) {
                                     throw new RuntimeException(e);
                                 }
