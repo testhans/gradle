@@ -112,7 +112,6 @@ public class BTreePersistentIndexedCache<K, V> implements PersistentIndexedCache
     }
 
     public V get(K key) {
-        LOGGER.info("getting " + key);
         try {
             try {
                 DataBlock block = header.getRoot().get(key);
@@ -130,7 +129,6 @@ public class BTreePersistentIndexedCache<K, V> implements PersistentIndexedCache
     }
 
     public void put(K key, V value) {
-        LOGGER.info("putting " + key + ":" + value);
         try {
             MessageDigestStream digestStream = new MessageDigestStream();
             keySerializer.write(digestStream, key);
@@ -156,7 +154,6 @@ public class BTreePersistentIndexedCache<K, V> implements PersistentIndexedCache
     }
 
     public void remove(K key) {
-        LOGGER.info("removing " + key);
         try {
             Lookup lookup = header.getRoot().find(key);
             if (lookup.entry == null) {
@@ -189,7 +186,7 @@ public class BTreePersistentIndexedCache<K, V> implements PersistentIndexedCache
     }
 
     public void close() {
-        LOGGER.info("Closing {}", this);
+        LOGGER.debug("Closing {}", this);
         try {
             store.close();
         } catch (Exception e) {
