@@ -15,8 +15,8 @@
  */
 package org.gradle.api.internal.changedetection;
 
-import org.gradle.internal.Factory;
 import org.gradle.cache.PersistentIndexedCache;
+import org.gradle.internal.Factory;
 import org.gradle.messaging.serialize.Serializer;
 
 public interface TaskArtifactStateCacheAccess {
@@ -47,4 +47,6 @@ public interface TaskArtifactStateCacheAccess {
     <K, V> PersistentIndexedCache createCache(String cacheName, Class<K> keyType, Class<V> valueType);
 
     <K, V> PersistentIndexedCache<K, V> createCache(String cacheName, Class<K> keyType, Class<V> valueType, Serializer<V> valueSerializer);
+
+    void stop();
 }

@@ -51,9 +51,12 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
     public void process(final TaskExecutionPlan taskExecutionPlan, final TaskExecutionListener taskListener) {
         stateCacheAccess.longRunningOperation("Executing all tasks", new Runnable() {
             public void run() {
-                doProcess(taskExecutionPlan, taskListener);
-                // TODO This needs to wait until all tasks have been executed, not just started....
-                taskExecutionPlan.awaitCompletion();
+                try {
+                    doProcess(taskExecutionPlan, taskListener);
+                    taskExecutionPlan.awaitCompletion();
+                } finally {
+                    stateCacheAccess.stop();
+                }
             }
         });
     }
@@ -106,12 +109,12 @@ class ParallelTaskPlanExecutor extends DefaultTaskPlanExecutor {
             final String taskPath = taskInfo.getTask().getPath();
             LOGGER.info(taskPath + " (" + Thread.currentThread() + " - start");
             final long start = System.currentTimeMillis();
-            stateCacheAccess.useCache("Executing " + taskPath, new Runnable() {
-                public void run() {
+//            stateCacheAccess.useCache("Executing " + taskPath, new Runnable() {
+//                public void run() {
                     waitedForCacheMs += System.currentTimeMillis() - start;
                     processTask(taskInfo, taskExecutionPlan, taskListener);
-                }
-            });
+//                }
+//            });
             busyMs += System.currentTimeMillis() - start;
 
             LOGGER.info(taskPath + " (" + Thread.currentThread() + ") - complete");

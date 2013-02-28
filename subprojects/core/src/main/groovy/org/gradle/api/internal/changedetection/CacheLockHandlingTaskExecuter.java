@@ -29,10 +29,10 @@ public class CacheLockHandlingTaskExecuter implements TaskExecuter {
     }
 
     public void execute(final TaskInternal task, final TaskStateInternal state) {
-        cacheAccess.longRunningOperation(String.format("execute %s", task), new Runnable() {
-            public void run() {
+//        cacheAccess.longRunningOperation(String.format("execute %s", task), new Runnable() {
+//            public void run() {
                 executer.execute(task, state);
-            }
-        });
+//            }
+//        });
     }
 }

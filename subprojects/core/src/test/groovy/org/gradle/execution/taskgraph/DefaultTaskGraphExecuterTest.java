@@ -576,5 +576,13 @@ public class DefaultTaskGraphExecuterTest {
         public <K, V> PersistentIndexedCache<K, V> createCache(String cacheName, Class<K> keyType, Class<V> valueType, Serializer<V> valueSerializer) {
             throw new UnsupportedOperationException();
         }
+
+        public void start() {
+            //To change body of implemented methods use File | Settings | File Templates.
+        }
+
+        public void stop() {
+            //To change body of implemented methods use File | Settings | File Templates.
+        }
     }
 }

@@ -30,13 +30,14 @@ public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCac
     private final Gradle gradle;
     private final CacheRepository cacheRepository;
     private PersistentCache cache;
+    private LibrarianThread librarian = new LibrarianThread();
 
     public DefaultTaskArtifactStateCacheAccess(Gradle gradle, CacheRepository cacheRepository) {
         this.gradle = gradle;
         this.cacheRepository = cacheRepository;
     }
 
-    private PersistentCache getCache() {
+    public PersistentCache getCache() {
         if (cache == null) {
             cache = cacheRepository
                     .cache("taskArtifacts")
@@ -44,6 +45,7 @@ public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCac
                     .withDisplayName("task artifact state cache")
                     .withLockMode(FileLockManager.LockMode.Exclusive)
                     .open();
+            librarian.start(cache);
         }
         return cache;
     }
@@ -54,7 +56,8 @@ public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCac
                 return getCache().createCache(cacheFile(cacheName), keyType, valueType);
             }
         };
-        return new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
+        PersistentIndexedCache lazy = new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
+        return librarian.sync(lazy);
     }
 
     public <K, V> PersistentIndexedCache<K, V> createCache(final String cacheName, final Class<K> keyType, final Class<V> valueType, final Serializer<V> valueSerializer) {
@@ -63,8 +66,8 @@ public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCac
                 return getCache().createCache(cacheFile(cacheName), keyType, valueSerializer);
             }
         };
-        return new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
-
+        PersistentIndexedCache lazy = new LazyCreationProxy<PersistentIndexedCache>(PersistentIndexedCache.class, factory).getSource();
+        return librarian.sync(lazy);
     }
 
     private File cacheFile(String cacheName) {
@@ -72,6 +75,7 @@ public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCac
     }
 
     public <T> T useCache(String operationDisplayName, Factory<? extends T> action) {
+        //avoid using getCache() here
         return getCache().useCache(operationDisplayName, action);
     }
 
@@ -81,5 +85,9 @@ public class DefaultTaskArtifactStateCacheAccess implements TaskArtifactStateCac
 
     public void longRunningOperation(String operationDisplayName, Runnable action) {
         getCache().longRunningOperation(operationDisplayName, action);
+    }
+
+    public void stop() {
+        librarian.requestStop();
     }
 }

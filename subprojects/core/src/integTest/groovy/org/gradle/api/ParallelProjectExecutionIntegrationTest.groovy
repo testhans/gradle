@@ -72,6 +72,7 @@ public class ParallelProjectExecutionIntegrationTest extends AbstractIntegration
 
         expect:
         run 'build', '--parallel-threads', '2', '-i'
+//        run 'build', '--parallel-threads', '2', '-i'
     }
 
     def "java compilation 2"() {
@@ -103,4 +104,16 @@ public class ParallelProjectExecutionIntegrationTest extends AbstractIntegration
         expect:
         run 'build', '--parallel-threads', '2', '-i'
     }
+
+    def "java compilation 3"() {
+        file("src/main/java/A.java") << "public class A { }"
+        buildFile << """
+            apply plugin: 'java'
+        """
+
+        expect:
+        run 'build', '--parallel-threads', '1', '-i'
+        run 'build', '--parallel-threads', '2', '-i'
+    }
+
 }
