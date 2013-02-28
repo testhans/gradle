@@ -133,7 +133,8 @@ public class LibrarianThread<K, V> {
         private long totalBlocked;
         private long totalIdle;
         private int unlockedCache;
-        private int cacheUnlockingFrequency = 2000;
+        private int cacheUnlockingFrequency = Integer.valueOf(System.getProperty("cacheFrequency", "500"));
+        private long totalCacheUnlocked;
 
         public V get(final K key, final PersistentIndexedCache delegate) {
             lock.lock();
@@ -216,8 +217,8 @@ public class LibrarianThread<K, V> {
             }
             long totalTime = System.currentTimeMillis() - start;
             long busyTime = totalTime - totalIdle;
-            LOG.lifecycle("Task history access. Busy: {}, Idle: {}, Blocked reads: {}, Unlocked cache times: {}",
-                    prettyTime(busyTime), prettyTime(totalIdle), prettyTime(totalBlocked), unlockedCache);
+            LOG.lifecycle("Task history access thread. Busy: {}, idle: {}, blocked reads: {}, Cache unlocked: {}, Cache unlock count: {}",
+                    prettyTime(busyTime), prettyTime(totalIdle), prettyTime(totalBlocked), prettyTime(totalCacheUnlocked), unlockedCache);
         }
 
         private void runNow() {
@@ -243,11 +244,11 @@ public class LibrarianThread<K, V> {
                             unlockedCache++;
                             cache.longRunningOperation("Librarian is idle and awaits task history cache requests", new Runnable() {
                                 public void run() {
-                                    await();
+                                    await(true);
                                 }
                             });
                         } else {
-                            await();
+                            await(false);
                         }
                     }
                 }
@@ -257,11 +258,15 @@ public class LibrarianThread<K, V> {
             stopped = true;
         }
 
-        private void await() {
+        private void await(boolean cacheUnlocked) {
             try {
                 long startAwait = System.currentTimeMillis();
                 accessRequested.await();
-                totalIdle += System.currentTimeMillis() - startAwait;
+                long duration = System.currentTimeMillis() - startAwait;
+                totalIdle += duration;
+                if (cacheUnlocked) {
+                    totalCacheUnlocked += duration;
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
