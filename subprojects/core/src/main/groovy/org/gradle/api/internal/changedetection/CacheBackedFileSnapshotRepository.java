@@ -21,15 +21,16 @@ import java.security.SecureRandom;
 
 public class CacheBackedFileSnapshotRepository implements FileSnapshotRepository {
     private final PersistentIndexedCache<Object, Object> cache;
-    private SecureRandom random;
+    private final SecureRandom random = new SecureRandom();
 
     public CacheBackedFileSnapshotRepository(TaskArtifactStateCacheAccess cacheAccess) {
         cache = cacheAccess.createCache("fileSnapshots", Object.class, Object.class);
-        random = new SecureRandom();
     }
 
     public Long add(FileCollectionSnapshot snapshot) {
-        return random.nextLong();
+        Long id = random.nextLong();
+        cache.put(id, snapshot);
+        return id;
     }
 
     public FileCollectionSnapshot get(Long id) {
