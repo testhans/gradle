@@ -112,7 +112,7 @@ public class ParallelProjectExecutionIntegrationTest extends AbstractIntegration
         """
 
         expect:
-        run 'build', '--parallel-threads', '1', '-i'
+        run 'build', '--parallel-threads', '2', '-i'
         run 'build', '--parallel-threads', '2', '-i'
     }
 

@@ -46,6 +46,11 @@ public class LibrarianThread<K, V> {
 
     public void requestStop() {
         librarian.requestStop();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public synchronized void start(PersistentCache cache) {
@@ -112,6 +117,10 @@ public class LibrarianThread<K, V> {
             }
         }
 
+        //when read for given key, check if there is a write/remove pending, if there is, use the value from write
+        // instead of getting it from the delegate cache
+        //when there are multiple writes for the same key (e.g. check when the write/remove is queued), ignore the earlier one
+
         public void remove(final K key, final PersistentIndexedCache delegate) {
             lock.lock();
             try {
@@ -155,23 +164,28 @@ public class LibrarianThread<K, V> {
             }
         }
 
+        /*
+
+
+         */
+
         private void runNow() {
             lock.lock();
             try {
-                while(!stopRequested) {
+                while(true) {
                     if (!readQueue.isEmpty()) {
                         Factory<V> factory = readQueue.removeFirst();
-                        LOG.lifecycle("Cache read requested");
                         V value = factory.create();
                         answers.put(factory, new Answer<V>(value));
                         answerReady.signalAll();
                     } else if (!writes.isEmpty()) {
-                        LOG.lifecycle("Cache write requested");
                         Runnable runnable = writes.removeFirst();
                         runnable.run();
                     } else {
+                        if (stopRequested) {
+                            break;
+                        }
                         try {
-                            LOG.lifecycle("Awaiting cache access requests...");
                             accessRequested.await();
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
@@ -185,8 +199,8 @@ public class LibrarianThread<K, V> {
         }
 
         public void requestStop() {
-            stopRequested = true;
             lock.lock();
+            stopRequested = true;
             try {
                 accessRequested.signalAll();
                 answerReady.signalAll();

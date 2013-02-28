@@ -17,21 +17,19 @@ package org.gradle.api.internal.changedetection;
 
 import org.gradle.cache.PersistentIndexedCache;
 
+import java.security.SecureRandom;
+
 public class CacheBackedFileSnapshotRepository implements FileSnapshotRepository {
     private final PersistentIndexedCache<Object, Object> cache;
+    private SecureRandom random;
 
     public CacheBackedFileSnapshotRepository(TaskArtifactStateCacheAccess cacheAccess) {
         cache = cacheAccess.createCache("fileSnapshots", Object.class, Object.class);
+        random = new SecureRandom();
     }
 
     public Long add(FileCollectionSnapshot snapshot) {
-        Long id = (Long) cache.get("nextId");
-        if (id == null) {
-            id = 1L;
-        }
-        cache.put("nextId", id + 1);
-        cache.put(id, snapshot);
-        return id;
+        return random.nextLong();
     }
 
     public FileCollectionSnapshot get(Long id) {
