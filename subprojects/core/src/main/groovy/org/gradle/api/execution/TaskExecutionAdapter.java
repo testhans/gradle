@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 the original author or authors.
+ * Copyright 2009 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,11 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.gradle.api.publish.internal;
+package org.gradle.api.execution;
 
-import org.gradle.api.publish.Publication;
-import org.gradle.api.publish.PublicationContainer;
+import org.gradle.api.Task;
+import org.gradle.api.tasks.TaskState;
 
-public interface PublicationContainerInternal extends PublicationContainer {
-    void registerFactory(Class<? extends Publication> type, PublicationFactory publicationFactory);
+/**
+ * A {@link TaskExecutionListener} adapter class for receiving task execution events.
+ *
+ * The methods in this class are empty. This class exists as convenience for creating listener objects.
+ */
+public class TaskExecutionAdapter implements TaskExecutionListener {
+
+    public void beforeExecute(Task task) {}
+
+    public void afterExecute(Task task, TaskState state) {}
+
 }

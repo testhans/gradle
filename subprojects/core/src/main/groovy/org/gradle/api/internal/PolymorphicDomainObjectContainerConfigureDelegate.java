@@ -15,18 +15,30 @@
  */
 package org.gradle.api.internal;
 
-import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.PolymorphicDomainObjectContainer;
 
-public class NamedDomainObjectContainerConfigureDelegate extends ConfigureDelegate {
-    private final NamedDomainObjectContainer container;
+import groovy.lang.Closure;
 
-    public NamedDomainObjectContainerConfigureDelegate(Object owner, NamedDomainObjectContainer container) {
+public class PolymorphicDomainObjectContainerConfigureDelegate extends NamedDomainObjectContainerConfigureDelegate {
+    private final PolymorphicDomainObjectContainer container;
+
+    public PolymorphicDomainObjectContainerConfigureDelegate(Object owner, PolymorphicDomainObjectContainer container) {
         super(owner, container);
         this.container = container;
     }
 
     @Override
+    protected boolean _isConfigureMethod(String name, Object[] params) {
+        return super._isConfigureMethod(name, params) || params.length == 2 && params[0] instanceof Class && params[1] instanceof Closure;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
     protected void _configure(String name, Object[] params) {
-        container.create(name);
+        if (params.length <= 1) {
+            container.create(name);
+        } else {
+            container.create(name, (Class) params[0]);
+        }
     }
 }

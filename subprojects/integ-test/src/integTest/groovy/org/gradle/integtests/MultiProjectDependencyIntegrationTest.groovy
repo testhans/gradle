@@ -247,12 +247,12 @@ project(':$from') {
     }
 
     def failingBuild(def project) {
+        file("$project/src/main/java/Foo.java") << "class Foo {}"
         buildFile << """
 project(':$project') {
-    task fail << {
+    compileJava.doFirst {
         throw new RuntimeException('failure in $project')
     }
-    jar.dependsOn fail
 }
 """
     }

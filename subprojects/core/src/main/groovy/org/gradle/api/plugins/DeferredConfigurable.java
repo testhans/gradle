@@ -13,10 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.gradle.api.publish.internal;
 
-import org.gradle.api.publish.Publication;
+package org.gradle.api.plugins;
 
-public interface PublicationFactory {
-    Publication create(String name);
-}
+import org.gradle.api.Incubating;
+
+import java.lang.annotation.*;
+
+
+/**
+ * Indicates that the annotated object is designed to be configured only once, and that changes to configuration inputs made after configuration should not be allowed.
+ */
+@Incubating
+@Inherited
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface DeferredConfigurable {}
