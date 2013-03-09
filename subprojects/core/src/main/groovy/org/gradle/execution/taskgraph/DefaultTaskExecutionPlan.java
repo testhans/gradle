@@ -20,6 +20,8 @@ import org.gradle.api.CircularReferenceException;
 import org.gradle.api.Task;
 import org.gradle.api.internal.TaskInternal;
 import org.gradle.api.internal.tasks.CachingTaskDependencyResolveContext;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.specs.Specs;
 import org.gradle.execution.MultipleBuildFailures;
@@ -36,6 +38,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * access to these methods.
  */
 class DefaultTaskExecutionPlan implements TaskExecutionPlan {
+    private final static Logger LOG = Logging.getLogger(DefaultTaskExecutionPlan.class);
     private final Lock lock = new ReentrantLock();
     private final Condition condition = lock.newCondition();
     private final LinkedHashMap<Task, TaskInfo> executionPlan = new LinkedHashMap<Task, TaskInfo>();
@@ -236,11 +239,22 @@ class DefaultTaskExecutionPlan implements TaskExecutionPlan {
 
     private void abortExecution() {
         // Allow currently executing tasks to complete, but skip everything else.
-        for (TaskInfo taskInfo : executionPlan.values()) {
+        List<TaskInfo> infos = new ArrayList(executionPlan.values());
+        for (TaskInfo taskInfo : infos) {
             if (taskInfo.isReady()) {
                 taskInfo.skipExecution();
             }
         }
+        Collections.sort(infos, new Comparator<TaskInfo>() {
+            public int compare(TaskInfo taskInfo, TaskInfo taskInfo1) {
+                int out = taskInfo.getState().compareTo(taskInfo1.getState());
+                if (out == 0) {
+                    out = taskInfo.getTask().getPath().compareTo(taskInfo1.getTask().getPath());
+                }
+                return out;
+            }
+        });
+        LOG.lifecycle("Aborted execution of all future tasks. Tasks: " + infos);
     }
 
     public void awaitCompletion() {

@@ -22,7 +22,7 @@ import java.util.Set;
 
 class TaskInfo {
 
-    private enum TaskExecutionState {
+    enum TaskExecutionState {
         READY, EXECUTING, EXECUTED, SKIPPED
     }
 
@@ -47,6 +47,10 @@ class TaskInfo {
 
     public boolean isReady() {
         return state == TaskExecutionState.READY;
+    }
+
+    public TaskExecutionState getState() {
+        return state;
     }
 
     public boolean isComplete() {
@@ -105,5 +109,10 @@ class TaskInfo {
             }
         }
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return task.getPath() + "[" + state + "]";
     }
 }
